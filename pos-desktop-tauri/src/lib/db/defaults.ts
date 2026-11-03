@@ -45,7 +45,10 @@ export const defaultSettings: SettingItem[] = [
   { key: 'auth_trigger_open_drawer', value: 'true' },
   { key: 'auth_trigger_refund', value: 'true' },
   { key: 'remote_auth_timeout', value: '60' },
-  { key: 'notif_retention_days', value: '30' }
+  { key: 'notif_retention_days', value: '30' },
+  { key: 'max_products', value: '500' },
+  { key: 'max_deliveries', value: '500' },
+  { key: 'max_fiado_customers', value: '500' }
 ];
 
 export const keysToRemoveOnWipe: string[] = [

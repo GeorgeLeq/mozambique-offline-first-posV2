@@ -21,6 +21,7 @@ export const commonTranslations: Record<LanguageCode, Record<string, string>> = 
     // Sync Badges
     syncing: 'Sincronizando',
     synced: 'Sincronizado',
+    pending: 'Pendente',
     offline: 'Offline',
     syncError: 'Erro de Sync',
     syncBackupMessage: 'Guardando dados na nuvem...',
@@ -117,6 +118,7 @@ export const commonTranslations: Record<LanguageCode, Record<string, string>> = 
     // Sync Badges
     syncing: 'Syncing',
     synced: 'Synced',
+    pending: 'Pending',
     offline: 'Offline',
     syncError: 'Sync Error',
     syncBackupMessage: 'Backing up data to cloud...',
@@ -213,6 +215,7 @@ export const commonTranslations: Record<LanguageCode, Record<string, string>> = 
     // Sync Badges
     syncing: 'Inasawazisha',
     synced: 'Imesawazishwa',
+    pending: 'Inasubiri',
     offline: 'Nje ya Mtandao',
     syncError: 'Hitilafu ya Sync',
     syncBackupMessage: 'Inahifadhi data mtandaoni...',
@@ -309,6 +312,7 @@ export const commonTranslations: Record<LanguageCode, Record<string, string>> = 
     // Sync Badges
     syncing: 'Synchronisation',
     synced: 'Synchronisé',
+    pending: 'En attente',
     offline: 'Hors ligne',
     syncError: 'Erreur de Sync',
     syncBackupMessage: 'Sauvegarde des données dans le cloud...',

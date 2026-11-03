@@ -461,3 +461,466 @@ Code
 10. João earned 3 MT profit without touching his phone!
 This is completely automated, highly scalable, and gives every provider full control over their own prices and SIMs!
 Shall we design the Provider Configuration Screen and the Multi-Tenant database tables for this right now?
+
+
+
+
+
+
+
+/**
+ * @file chatAgentBridge.ts
+ * @description Main ChatAgentBridge intermediary service.
+ * Mediates between AI model intent outputs and local SQLite database operations.
+ * Enforces whitelisting, parameter validation, audit logging, and error boundary protection.
+ */
+
+import {
+  BridgeActionName,
+  BridgeResponse,
+  CreateCustomerInput,
+  CreateOperatorInput,
+  CustomerDebtInput,
+  DeleteCustomerInput,
+  DeleteOperatorInput,
+  DeleteProductInput,
+  SafeProductInput,
+  StockUpdateInput,
+  UpdateCustomerInput,
+  UpdateOperatorInput,
+  UpdateProductInput
+} from './types';
+import { getInventoryCount, getProductByBarcode, searchProducts } from './inventoryOps';
+import { createProduct, deleteProduct, updateProduct, updateStockQuantity } from './productOps';
+import { createCustomer, deleteCustomer, getCustomerDebt, recordCustomerDebt, updateCustomer } from './customerOps';
+import { createOperator, deleteOperator, listOperators, updateOperator } from './userOps';
+import { getShiftSummary } from './shiftOps';
+import { getExpectedDeliveries } from './deliveryOps';
+import { getDB } from '../../db';
+import { logAudit } from '../../audit';
+
+export class ChatAgentBridge {
+  private static instance: ChatAgentBridge;
+
+  private constructor() {}
+
+  public static getInstance(): ChatAgentBridge {
+    if (!ChatAgentBridge.instance) {
+      ChatAgentBridge.instance = new ChatAgentBridge();
+    }
+    return ChatAgentBridge.instance;
+  }
+
+  /**
+   * Main dispatch orchestrator.
+   * Receives an action name and generic parameters from the AI intent engine,
+   * validates against whitelisted actions, executes the corresponding database operation,
+   * and returns a standardized BridgeResponse.
+   */
+  public async dispatch(
+    action: BridgeActionName | string,
+    params: Record<string, any> = {},
+    userId?: string
+  ): Promise<BridgeResponse> {
+    const actionClean = action?.trim() as BridgeActionName;
+
+    try {
+      switch (actionClean) {
+        case 'getInventoryCount': {
+          const category = typeof params.category === 'string' ? params.category : undefined;
+          const data = await getInventoryCount(category);
+          return { success: true, action: actionClean, data };
+        }
+
+        case 'searchProducts': {
+          const query = String(params.query || params.searchTerm || params.name || '').trim();
+          const data = await searchProducts(query);
+          return { success: true, action: actionClean, data };
+        }
+
+        case 'getProductByBarcode': {
+          const barcode = String(params.barcode || '').trim();
+          const data = await getProductByBarcode(barcode);
+          return { success: true, action: actionClean, data };
+        }
+
+        case 'createProduct': {
+          const productInput: SafeProductInput = {
+            name: String(params.name || '').trim(),
+            barcode: params.barcode ? String(params.barcode).trim() : undefined,
+            category: params.category ? String(params.category).trim() : 'Geral',
+            unit_type: params.unit_type || params.unitType || 'unit',
+            unit_volume: params.unit_volume ? Number(params.unit_volume) : 1,
+            cost_price: params.cost_price ? Number(params.cost_price) : (params.cost_price_mt ? Number(params.cost_price_mt) : undefined),
+            price: Number(params.price ?? params.price_mt) || 0,
+            stock_quantity: Number(params.stock_quantity ?? params.quantity ?? params.stock) || 0,
+            min_stock_alert: params.min_stock_alert ? Number(params.min_stock_alert) : 5,
+            image_url: params.image_url ? String(params.image_url) : undefined
+          };
+
+          const data = await createProduct(productInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'updateProduct': {
+          const updateInput: UpdateProductInput = {
+            productId: params.productId || params.id,
+            productName: params.productName || params.targetName,
+            name: params.name || params.newName,
+            price_mt: params.price_mt !== undefined ? Number(params.price_mt) : (params.price !== undefined ? Number(params.price) : undefined),
+            cost_price_mt: params.cost_price_mt !== undefined ? Number(params.cost_price_mt) : (params.cost_price !== undefined ? Number(params.cost_price) : undefined),
+            stock_quantity: params.stock_quantity !== undefined ? Number(params.stock_quantity) : (params.stock !== undefined ? Number(params.stock) : undefined),
+            category: params.category
+          };
+
+          const data = await updateProduct(updateInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'deleteProduct': {
+          const deleteInput: DeleteProductInput = {
+            productId: params.productId || params.id,
+            productName: params.productName || params.name,
+            reason: params.reason
+          };
+
+          const data = await deleteProduct(deleteInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'updateStockQuantity': {
+          const stockInput: StockUpdateInput = {
+            productId: String(params.productId || params.id || '').trim(),
+            quantityDelta: Number(params.quantityDelta ?? params.delta ?? params.quantity) || 0,
+            reason: params.reason ? String(params.reason) : 'AI Chat Action'
+          };
+
+          const data = await updateStockQuantity(stockInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'createCustomer': {
+          const custInput: CreateCustomerInput = {
+            name: String(params.name || params.customer_name || '').trim(),
+            phone: params.phone || params.phone_number,
+            address: params.address,
+            initial_debt: Number(params.initial_debt || params.initial_debt_mt) || 0,
+            notes: params.notes
+          };
+
+          const data = await createCustomer(custInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'updateCustomer': {
+          const updateInput: UpdateCustomerInput = {
+            customerId: params.customerId || params.id,
+            customerName: params.customerName || params.targetName,
+            name: params.name || params.newName,
+            phone: params.phone || params.phone_number,
+            address: params.address
+          };
+
+          const data = await updateCustomer(updateInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'deleteCustomer': {
+          const delInput: DeleteCustomerInput = {
+            customerId: params.customerId || params.id,
+            customerName: params.customerName || params.name,
+            reason: params.reason
+          };
+
+          const data = await deleteCustomer(delInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'getCustomerDebt': {
+          const query = String(params.customerName || params.query || params.phone || '').trim();
+          const data = await getCustomerDebt(query);
+          return { success: true, action: actionClean, data };
+        }
+
+        case 'recordCustomerDebt': {
+          const debtInput: CustomerDebtInput = {
+            customerId: params.customerId ? String(params.customerId) : undefined,
+            customerName: params.customerName ? String(params.customerName) : undefined,
+            amount: Number(params.amount) || 0,
+            type: params.type === 'payment' ? 'payment' : 'fiado',
+            notes: params.notes ? String(params.notes) : undefined
+          };
+
+          const data = await recordCustomerDebt(debtInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'createOperator': {
+          const opInput: CreateOperatorInput = {
+            name: String(params.name || params.operator_name || '').trim(),
+            pin: String(params.pin || '').trim(),
+            role: params.role || 'operator',
+            terminal_name: params.terminal_name
+          };
+
+          const data = await createOperator(opInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'updateOperator': {
+          const updateInput: UpdateOperatorInput = {
+            userId: params.userId || params.id,
+            userName: params.userName || params.name,
+            name: params.name,
+            pin: params.pin,
+            role: params.role,
+            is_blocked: params.is_blocked
+          };
+
+          const data = await updateOperator(updateInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'deleteOperator': {
+          const delInput: DeleteOperatorInput = {
+            userId: params.userId || params.id,
+            userName: params.userName || params.name,
+            reason: params.reason
+          };
+
+          const data = await deleteOperator(delInput, userId);
+          return { success: true, action: actionClean, data, auditLogged: true };
+        }
+
+        case 'listOperators': {
+          const data = await listOperators();
+          return { success: true, action: actionClean, data };
+        }
+
+        case 'getShiftSummary':
+        case 'fetch_shifts':
+        case 'fetchShifts': {
+          const shiftData = await getShiftSummary();
+          const db = await getDB();
+          let activeUsers: any[] = [];
+          try {
+            activeUsers = await db.select(
+              `SELECT id, name, role, terminal_name, current_shift_start, current_shift_cash FROM users WHERE current_shift_start IS NOT NULL AND (is_deleted = 0 OR is_deleted IS NULL)`
+            );
+          } catch {}
+          return {
+            success: true,
+            action: actionClean,
+            data: {
+              ...shiftData,
+              activeCashiers: activeUsers,
+              activeShiftsCount: activeUsers.length
+            }
+          };
+        }
+
+        case 'getExpectedDeliveries':
+        case 'fetch_deliveries':
+        case 'fetchDeliveries': {
+          const status = String(params.status || 'pending').trim();
+          const data = await getExpectedDeliveries(status);
+          const totalExpectedUnits = data.reduce((sum, d) => sum + (d.total_expected_quantity || 0), 0);
+          return {
+            success: true,
+            action: actionClean,
+            data: {
+              deliveries: data,
+              pendingCount: data.length,
+              totalExpectedUnits
+            }
+          };
+        }
+
+        case 'fetch_inventory':
+        case 'fetchInventory': {
+          const filter = String(params.filter || 'all').toLowerCase();
+          const countSummary = await getInventoryCount(params.category);
+          const db = await getDB();
+          let items: any[] = [];
+          if (filter === 'low_stock' || filter === 'out_of_stock') {
+            items = countSummary.lowStockItems;
+          } else if (params.search) {
+            items = await searchProducts(String(params.search));
+          } else {
+            items = await db.select(
+              `SELECT id, name, category, price_mt, stock_quantity, min_stock_alert FROM products WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY name ASC LIMIT 30`
+            );
+          }
+          return {
+            success: true,
+            action: actionClean,
+            data: {
+              ...countSummary,
+              items
+            }
+          };
+        }
+
+        case 'fetch_customers':
+        case 'fetchCustomers': {
+          const db = await getDB();
+          const filter = String(params.filter || 'all').toLowerCase();
+          const debtRows: any[] = await db.select(
+            `SELECT customer_name, SUM(amount_mt) as total_debt, phone_number, address
+             FROM debts
+             GROUP BY customer_name
+             ORDER BY total_debt DESC LIMIT 20`
+          );
+          const debtors = debtRows.map(r => ({
+            name: r.customer_name,
+            total_debt: Number(r.total_debt) || 0,
+            phone: r.phone_number,
+            address: r.address
+          }));
+          const totalOutstandingDebt = debtors.reduce((sum, c) => sum + c.total_debt, 0);
+          return {
+            success: true,
+            action: actionClean,
+            data: {
+              customers: debtors,
+              totalCustomers: debtors.length,
+              totalOutstandingDebt
+            }
+          };
+        }
+
+        case 'fetch_store_overview':
+        case 'fetchStoreOverview': {
+          const inv = await getInventoryCount();
+          const delivs = await getExpectedDeliveries('pending');
+          const shift = await getShiftSummary();
+          const db = await getDB();
+          let custCount = 0;
+          let totalDebt = 0;
+          try {
+            const debts: any[] = await db.select('SELECT SUM(amount_mt) as total, COUNT(DISTINCT customer_name) as count FROM debts WHERE status = "unpaid"');
+            custCount = Number(debts?.[0]?.count) || 0;
+            totalDebt = Number(debts?.[0]?.total) || 0;
+          } catch {}
+
+          return {
+            success: true,
+            action: actionClean,
+            data: {
+              inventory: {
+                totalProducts: inv.totalProducts,
+                totalStockUnits: inv.totalStockUnits,
+                lowStockCount: inv.lowStockCount
+              },
+              deliveries: {
+                pendingShipments: delivs.length,
+                totalUnitsExpected: delivs.reduce((sum, d) => sum + (d.total_expected_quantity || 0), 0)
+              },
+              customers: {
+                debtorsCount: custCount,
+                totalFiadoOutstanding: totalDebt
+              },
+              shift: {
+                cashier: shift.cashierName,
+                totalSales: shift.totalSalesVolume,
+                cashInDrawer: shift.cashInDrawer
+              }
+            }
+          };
+        }
+
+        default: {
+          await logAudit(
+            userId || 'ai_agent_bridge',
+            'AI_BLOCKED_ACTION',
+            `ChatAgentBridge blocked attempt to invoke non-whitelisted operation: "${action}"`
+          );
+          return {
+            success: false,
+            action,
+            error: `Action "${action}" is not whitelisted in ChatAgentBridge. Direct database access blocked.`
+          };
+        }
+      }
+    } catch (err: any) {
+      const errorMessage = err?.message || String(err);
+      await logAudit(
+        userId || 'ai_agent_bridge',
+        'AI_BRIDGE_ERROR',
+        `Error executing "${action}": ${errorMessage}`
+      );
+      return {
+        success: false,
+        action,
+        error: errorMessage
+      };
+    }
+  }
+
+  // Convenience Direct Helper Methods
+  public async getInventoryCount(category?: string): Promise<BridgeResponse> {
+    return this.dispatch('getInventoryCount', { category });
+  }
+
+  public async searchProducts(query: string): Promise<BridgeResponse> {
+    return this.dispatch('searchProducts', { query });
+  }
+
+  public async createProduct(params: SafeProductInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('createProduct', params, userId);
+  }
+
+  public async updateProduct(params: UpdateProductInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('updateProduct', params, userId);
+  }
+
+  public async deleteProduct(params: DeleteProductInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('deleteProduct', params, userId);
+  }
+
+  public async updateStockQuantity(params: StockUpdateInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('updateStockQuantity', params, userId);
+  }
+
+  public async createCustomer(params: CreateCustomerInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('createCustomer', params, userId);
+  }
+
+  public async updateCustomer(params: UpdateCustomerInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('updateCustomer', params, userId);
+  }
+
+  public async deleteCustomer(params: DeleteCustomerInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('deleteCustomer', params, userId);
+  }
+
+  public async getCustomerDebt(customerNameOrPhone: string): Promise<BridgeResponse> {
+    return this.dispatch('getCustomerDebt', { customerName: customerNameOrPhone });
+  }
+
+  public async recordCustomerDebt(params: CustomerDebtInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('recordCustomerDebt', params, userId);
+  }
+
+  public async createOperator(params: CreateOperatorInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('createOperator', params, userId);
+  }
+
+  public async updateOperator(params: UpdateOperatorInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('updateOperator', params, userId);
+  }
+
+  public async deleteOperator(params: DeleteOperatorInput, userId?: string): Promise<BridgeResponse> {
+    return this.dispatch('deleteOperator', params, userId);
+  }
+
+  public async listOperators(): Promise<BridgeResponse> {
+    return this.dispatch('listOperators', {});
+  }
+
+  public async getShiftSummary(): Promise<BridgeResponse> {
+    return this.dispatch('getShiftSummary', {});
+  }
+}
+
+export const chatAgentBridge = ChatAgentBridge.getInstance();

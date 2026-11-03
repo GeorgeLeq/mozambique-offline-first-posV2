@@ -30,13 +30,11 @@ export function getHardwareFingerprint(): string {
  * Retrieves or initializes a persistent hardware-bound Device Identifier.
  */
 export function getPersistentDeviceId(): string {
-  if (typeof window === 'undefined') return 'DEVICE-DESKTOP-DEFAULT';
+  if (typeof window === 'undefined') return '11111111-1111-4111-8111-111111111111';
   let deviceId = localStorage.getItem('pos_hardware_device_id');
-  if (!deviceId) {
-    // Generate a consistent hardware fingerprint from screen, platform, and random UUID
-    const canvasFingerprint = typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height}_${navigator.language}` : 'desktop';
-    const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
-    deviceId = `HWID-${randomPart}-${Math.abs(hashString(canvasFingerprint)).toString(36).toUpperCase()}`;
+  const isUuid = deviceId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deviceId);
+  if (!deviceId || !isUuid) {
+    deviceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'c78f110c-b1dc-4e13-85e4-5f76b99982b7';
     localStorage.setItem('pos_hardware_device_id', deviceId);
   }
   return deviceId;

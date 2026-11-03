@@ -150,6 +150,141 @@ export function handleSystemQuery(query: string, bindValues?: any[]): boolean {
     return true;
   }
 
+  if (query.includes('INSERT INTO scan_history')) {
+    if (bindValues && bindValues.length >= 4) {
+      const id = bindValues[0];
+      mockStorage.scan_history.set(id, {
+        id: bindValues[0],
+        barcode: bindValues[1],
+        product_name: bindValues[2],
+        status: bindValues[3] || 'success',
+        user_id: bindValues[4] || 'unknown',
+        is_synced: 0,
+        sync_status: 0,
+        created_at: new Date().toISOString()
+      });
+      saveMockStorage('scan_history', mockStorage.scan_history);
+    }
+    return true;
+  }
+
+  if (query.includes('INSERT INTO till_payouts')) {
+    if (bindValues && bindValues.length >= 3) {
+      const id = bindValues[0];
+      const amountVal = Number(bindValues[1]) || 0;
+      mockStorage.till_payouts.set(id, {
+        id,
+        amount: amountVal,
+        amount_mt: amountVal,
+        reason: bindValues[2] || 'Despesas',
+        note: bindValues[3] || '',
+        user_id: bindValues[4] || null,
+        authorized_by: bindValues[5] || 'Gestor',
+        created_at: new Date().toISOString(),
+        is_synced: 0,
+        sync_status: 0
+      });
+      saveMockStorage('till_payouts', mockStorage.till_payouts);
+    }
+    return true;
+  }
+
+  if (query.includes('INSERT INTO ai_voice_audit_logs') || query.includes('INSERT OR REPLACE INTO ai_voice_audit_logs')) {
+    if (bindValues && bindValues.length >= 7) {
+      const id = bindValues[0];
+      mockStorage.ai_voice_audit_logs.set(id, {
+        id: bindValues[0],
+        shop_id: bindValues[1],
+        shift_id: bindValues[2],
+        cashier_id: bindValues[3],
+        cashier_name: bindValues[4],
+        feature_context: bindValues[5],
+        transcribed_text: bindValues[6],
+        parsed_entities: bindValues[7],
+        audio_duration_seconds: bindValues[8] ?? 0,
+        confidence_score: bindValues[9] ?? 0.95,
+        encrypted_payload: bindValues[10] ?? null,
+        is_mock: bindValues[11] ?? 0,
+        is_offline: bindValues[12] ?? 0,
+        sync_status: bindValues[13] ?? 0,
+        created_at: bindValues[14] || new Date().toISOString()
+      });
+      saveMockStorage('ai_voice_audit_logs', mockStorage.ai_voice_audit_logs);
+    }
+    return true;
+  }
+
+  if (query.includes('UPDATE ai_voice_audit_logs SET sync_status = 1')) {
+    if (bindValues && bindValues.length > 0) {
+      bindValues.forEach(id => {
+        const item = mockStorage.ai_voice_audit_logs.get(id);
+        if (item) {
+          item.sync_status = 1;
+          mockStorage.ai_voice_audit_logs.set(id, item);
+        }
+      });
+      saveMockStorage('ai_voice_audit_logs', mockStorage.ai_voice_audit_logs);
+    }
+    return true;
+  }
+
+  // AI Command Logs & Muse Spark Agentic actions
+  if (query.includes('INSERT INTO ai_command_logs') || query.includes('INSERT OR REPLACE INTO ai_command_logs')) {
+    if (bindValues && bindValues.length >= 7) {
+      const id = bindValues[0];
+      mockStorage.ai_command_logs.set(id, {
+        id: bindValues[0],
+        shop_id: bindValues[1] || null,
+        user_id: bindValues[2] || null,
+        user_name: bindValues[3] || 'Operador',
+        device_origin: bindValues[4] || 'desktop_pos',
+        input_type: bindValues[5] || 'text',
+        raw_input: bindValues[6] || '',
+        transcription: bindValues[7] || null,
+        detected_intent: bindValues[8] || null,
+        tool_called: bindValues[9] || null,
+        tool_arguments: bindValues[10] || null,
+        tool_result: bindValues[11] || null,
+        execution_status: bindValues[12] || 'success',
+        client_timestamp: bindValues[13] || new Date().toISOString(),
+        created_at: bindValues[14] || new Date().toISOString(),
+        synced_at: bindValues[15] || null,
+        sync_status: bindValues[16] ?? 0
+      });
+      saveMockStorage('ai_command_logs', mockStorage.ai_command_logs);
+    }
+    return true;
+  }
+
+  if (query.includes('UPDATE ai_command_logs SET sync_status = 1')) {
+    if (bindValues && bindValues.length > 0) {
+      bindValues.forEach(id => {
+        const item = mockStorage.ai_command_logs.get(id);
+        if (item) {
+          item.sync_status = 1;
+          item.synced_at = new Date().toISOString();
+          mockStorage.ai_command_logs.set(id, item);
+        }
+      });
+      saveMockStorage('ai_command_logs', mockStorage.ai_command_logs);
+    }
+    return true;
+  }
+
+  if (query.includes('UPDATE ai_command_logs SET execution_status')) {
+    if (bindValues && bindValues.length >= 2) {
+      const newStatus = bindValues[0];
+      const targetId = bindValues[bindValues.length - 1];
+      const item = mockStorage.ai_command_logs.get(targetId);
+      if (item) {
+        item.execution_status = newStatus;
+        mockStorage.ai_command_logs.set(targetId, item);
+        saveMockStorage('ai_command_logs', mockStorage.ai_command_logs);
+      }
+    }
+    return true;
+  }
+
   if (query.includes('INSERT INTO emergency_tokens') || query.includes('INSERT OR REPLACE INTO emergency_tokens')) {
     if (bindValues && bindValues.length >= 3) {
       const id = bindValues[0];

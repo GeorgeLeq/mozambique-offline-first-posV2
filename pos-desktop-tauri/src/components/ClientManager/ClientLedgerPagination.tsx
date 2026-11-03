@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCustomersI18n } from '../../i18n';
 
 interface ClientLedgerPaginationProps {
   totalPages: number;
@@ -15,10 +16,12 @@ export const ClientLedgerPagination: React.FC<ClientLedgerPaginationProps> = ({
   itemsPerPage,
   totalItems,
 }) => {
+  const t = useCustomersI18n();
+
   return (
     <div className="border-t border-slate-150 dark:border-zinc-850 p-5 flex flex-col sm:flex-row justify-between items-center bg-slate-50/50 dark:bg-zinc-950/40 gap-4">
       <span className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider">
-        A mostrar {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, totalItems)} de {totalItems} registos
+        {t.showing || 'A mostrar'} {((currentPage - 1) * itemsPerPage) + 1} {t.to || 'a'} {Math.min(currentPage * itemsPerPage, totalItems)} {t.of || 'de'} {totalItems} {t.records || 'registos'}
       </span>
       <div className="flex items-center gap-3">
         <button
@@ -26,7 +29,7 @@ export const ClientLedgerPagination: React.FC<ClientLedgerPaginationProps> = ({
           disabled={currentPage === 1}
           className="px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-slate-200 dark:border-zinc-855 bg-white dark:bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-zinc-850 text-slate-600 dark:text-zinc-400 transition-all active:scale-95 duration-200"
         >
-          Anterior
+          {t.prev || 'Anterior'}
         </button>
         <div className="flex items-center gap-1.5">
           {Array.from({ length: totalPages }).map((_, i) => (
@@ -48,9 +51,10 @@ export const ClientLedgerPagination: React.FC<ClientLedgerPaginationProps> = ({
           disabled={currentPage === totalPages}
           className="px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider border border-slate-200 dark:border-zinc-855 bg-white dark:bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-zinc-850 text-slate-600 dark:text-zinc-400 transition-all active:scale-95 duration-200"
         >
-          Seguinte
+          {t.next || 'Seguinte'}
         </button>
       </div>
     </div>
   );
 };
+

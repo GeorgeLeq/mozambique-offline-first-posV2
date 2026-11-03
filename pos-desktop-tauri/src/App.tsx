@@ -27,6 +27,7 @@ import { ShiftExitGuardModal } from './components/CashierScreen/ShiftExitGuardMo
 import { StaleShiftRecoveryModal } from './components/CashierScreen/StaleShiftRecoveryModal';
 import { BlindCloseModal } from './components/CashierScreen/BlindCloseModal';
 import { isShiftStale, closeShiftRecord } from './lib/shift/shiftManager';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import toast from 'react-hot-toast';
 
 function AppContent() {
@@ -62,27 +63,30 @@ function AppContent() {
   }, [currentUser?.id, currentUser?.current_shift_start]);
 
   useEffect(() => {
-    // Initial sync on app load for all local tables to cloud
-    syncAllToCloud();
+    if (!isActivated || !currentUser) return;
 
-    // Auto-sync interval: runs every 45s when online and document is visible
-    const SYNC_INTERVAL_MS = 45000;
+    // Initial sync with 3s grace delay to let UI mount smoothly
+    const initialSyncTimer = setTimeout(() => {
+      syncAllToCloud();
+    }, 3000);
+
+    // Auto-sync interval: runs every 60s when online and document is visible
+    const SYNC_INTERVAL_MS = 60000;
     const syncInterval = setInterval(() => {
       if (navigator.onLine && !document.hidden) {
         syncAllToCloud();
       }
     }, SYNC_INTERVAL_MS);
 
-    // Trigger sync on Window Focus, Visibility Change, or Network Reconnection
+    // Trigger sync on Window Focus, Visibility Change, or Network Reconnection with 30s cooldown
     let lastFocusTime = Date.now();
-    const FOCUS_COOLDOWN_MS = 15000;
+    const FOCUS_COOLDOWN_MS = 30000;
 
     const handleWindowFocus = () => {
       if (document.hidden) return;
       const now = Date.now();
       if (now - lastFocusTime >= FOCUS_COOLDOWN_MS) {
         lastFocusTime = now;
-        console.log('[Sync Engine] Window focus, visibility resume, or network reconnect detected. Running sync cycle...');
         syncAllToCloud();
       }
     };
@@ -92,6 +96,7 @@ function AppContent() {
     document.addEventListener('visibilitychange', handleWindowFocus);
 
     return () => {
+      clearTimeout(initialSyncTimer);
       clearInterval(syncInterval);
       window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('online', handleWindowFocus);
@@ -162,18 +167,6 @@ function AppContent() {
     }
   })();
 
-  if (isSubscriptionPageOpen) {
-    return (
-      <>
-        <UpdateBanner />
-        <SubscriptionPage onBack={closeSubscriptionPage} />
-        <FeatureLockModal />
-        <PaymentProofModal />
-        <OfflineUnlockModal />
-        <UpdateHardBlockModal />
-      </>
-    );
-  }
 
   const handleConfirmCloseShift = async (reportedAmount: number, detailsJson?: string) => {
     try {
@@ -255,14 +248,29 @@ function AppContent() {
 }
 
 import { Toaster } from 'react-hot-toast';
+import { CustomerDisplayView } from './components/CustomerDisplay/CustomerDisplayView';
 
 export default function App() {
+  const isCustomerDisplay = typeof window !== 'undefined' && 
+    (window.location.search.includes('window=customer-display') || window.location.hash.includes('customer-display'));
+
+  if (isCustomerDisplay) {
+    return (
+      <ThemeProvider defaultTheme="light">
+        <CustomerDisplayView />
+        <Toaster position="top-right" />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider defaultTheme="light">
       <AuthProvider>
         <SubscriptionProvider>
           <UpdateProvider>
-            <AppContent />
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
             <Toaster 
               position="top-right" 
               toastOptions={{

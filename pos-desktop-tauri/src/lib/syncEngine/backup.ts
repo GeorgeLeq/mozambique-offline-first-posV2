@@ -12,6 +12,45 @@ async function batchInsertOrReplace(
   chunkSize: number
 ): Promise<void> {
   if (!rows || rows.length === 0) return;
+
+  const isTauri = typeof window !== 'undefined' && 
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_METADATA__' in window);
+
+  // In browser / mockDb environment, populate mockStorage directly in memory for 100x speedup
+  if (!isTauri) {
+    try {
+      const { mockStorage, saveMockStorage } = await import('../mockDb/storage');
+      let tableMap = mockStorage[tableName];
+      if (!tableMap) {
+        tableMap = new Map<string, any>();
+        mockStorage[tableName] = tableMap;
+      }
+      const idIdx = columns.indexOf('id');
+      const keyIdx = columns.indexOf('key');
+      const pkIndex = idIdx !== -1 ? idIdx : (keyIdx !== -1 ? keyIdx : 0);
+
+      for (const row of rows) {
+        const rowObj: Record<string, any> = {};
+        columns.forEach((col, idx) => {
+          rowObj[col] = row[idx];
+        });
+        const pkValue = row[pkIndex] !== undefined ? String(row[pkIndex]) : crypto.randomUUID();
+        tableMap.set(pkValue, rowObj);
+      }
+
+      saveMockStorage(tableName, tableMap);
+    } catch (_mockErr) {
+      const singleQuery = `INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
+      for (const row of rows) {
+        try {
+          await db.execute(singleQuery, row);
+        } catch (_rowErr) {}
+      }
+    }
+    return;
+  }
+
+  // In native Tauri desktop with real SQLite engine, chunk multi-row statements for maximum speed:
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     const rowPlaceholders = chunk.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ');
@@ -32,7 +71,14 @@ export async function downloadShopBackupFromCloud(
   deviceId: string,
   onProgress?: (percent: number, message: string, totalRecords: number) => void
 ): Promise<void> {
-  console.log(`Starting cloud restore/backup download for shop: ${shopId}...`);
+  if (!shopId || typeof shopId !== 'string' || shopId.trim() === '') {
+    console.warn('[Backup] downloadShopBackupFromCloud called with empty shopId. Aborting.');
+    if (onProgress) onProgress(100, 'Configuração concluída com sucesso!', 0);
+    return;
+  }
+
+  const cleanShopId = shopId.trim();
+  console.log(`Starting cloud restore/backup download for shop: ${cleanShopId}...`);
   const db = await getDB();
   let totalRecords = 0;
 
@@ -44,7 +90,7 @@ export async function downloadShopBackupFromCloud(
     const { data: settingsData } = await supabase
       .from('settings')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId);
     if (settingsData) {
       totalRecords += settingsData.length;
     }
@@ -54,7 +100,7 @@ export async function downloadShopBackupFromCloud(
     const { data: usersData } = await supabase
       .from('users')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId);
     if (usersData) {
       totalRecords += usersData.length;
     }
@@ -64,7 +110,7 @@ export async function downloadShopBackupFromCloud(
     const { data: productsData } = await supabase
       .from('products')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId);
     if (productsData) {
       totalRecords += productsData.length;
     }
@@ -74,17 +120,19 @@ export async function downloadShopBackupFromCloud(
     const { data: aliasesData } = await supabase
       .from('product_aliases')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId);
     if (aliasesData) {
       totalRecords += aliasesData.length;
     }
 
-    // 5. Download Sales history
+    // 5. Download Sales history (limit to most recent 500)
     if (onProgress) onProgress(35, 'Descarregando histórico de vendas realizado...', totalRecords);
     const { data: salesData } = await supabase
       .from('sales')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .order('created_at', { ascending: false })
+      .limit(500);
     if (salesData) {
       totalRecords += salesData.length;
     }
@@ -94,7 +142,8 @@ export async function downloadShopBackupFromCloud(
     const { data: spoiledData } = await supabase
       .from('spoiled_items')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .limit(200);
     if (spoiledData) {
       totalRecords += spoiledData.length;
     }
@@ -104,7 +153,8 @@ export async function downloadShopBackupFromCloud(
     const { data: debtsData } = await supabase
       .from('debts')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .limit(200);
     if (debtsData) {
       totalRecords += debtsData.length;
     }
@@ -114,17 +164,20 @@ export async function downloadShopBackupFromCloud(
     const { data: paymentsData } = await supabase
       .from('debt_payments')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .limit(200);
     if (paymentsData) {
       totalRecords += paymentsData.length;
     }
 
-    // 9. Download Audit Logs
+    // 9. Download Audit Logs (limit to recent 200)
     if (onProgress) onProgress(65, 'Descarregando registos de auditoria...', totalRecords);
     const { data: auditData } = await supabase
       .from('audit_logs')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (auditData) {
       totalRecords += auditData.length;
     }
@@ -134,7 +187,9 @@ export async function downloadShopBackupFromCloud(
     const { data: shiftsData } = await supabase
       .from('shift_reports')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .order('created_at', { ascending: false })
+      .limit(100);
     if (shiftsData) {
       totalRecords += shiftsData.length;
     }
@@ -144,7 +199,9 @@ export async function downloadShopBackupFromCloud(
     const { data: notifsData } = await supabase
       .from('notifications')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .order('created_at', { ascending: false })
+      .limit(100);
     if (notifsData) {
       totalRecords += notifsData.length;
     }
@@ -154,7 +211,8 @@ export async function downloadShopBackupFromCloud(
     const { data: payoutsData } = await supabase
       .from('till_payouts')
       .select('*')
-      .eq('shop_id', shopId);
+      .eq('shop_id', cleanShopId)
+      .limit(100);
     if (payoutsData) {
       totalRecords += payoutsData.length;
     }
@@ -176,9 +234,9 @@ export async function downloadShopBackupFromCloud(
       }
 
       // Preserve current device bindings
-      await db.execute('INSERT OR REPLACE INTO settings (key, value, sync_status) VALUES (?, ?, 1)', ['shop_id', shopId]);
+      await db.execute('INSERT OR REPLACE INTO settings (key, value, sync_status) VALUES (?, ?, 1)', ['shop_id', cleanShopId]);
       await db.execute('INSERT OR REPLACE INTO settings (key, value, sync_status) VALUES (?, ?, 1)', ['device_id', deviceId]);
-      localStorageBuffer['shop_id'] = shopId;
+      localStorageBuffer['shop_id'] = cleanShopId;
       localStorageBuffer['device_id'] = deviceId;
 
       // 2. users

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Key } from 'lucide-react';
+import React from 'react';
+import { Key, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getDB } from '../../../lib/db';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface NumpadFooterActionsProps {
   onOpenRecovery: () => void;
@@ -9,35 +9,19 @@ interface NumpadFooterActionsProps {
 }
 
 export function NumpadFooterActions({ onOpenRecovery, onSetIsLoading }: NumpadFooterActionsProps) {
-  const handleWipeSystem = async () => {
-    if (window.confirm('TEM A CERTEZA QUE DESEJA APAGAR TODO O SISTEMA? Esta ação é irreversível e limpará produtos, utilizadores, vendas e configurações!')) {
-      if (window.confirm('Confirmação final: APAGAR TUDO?')) {
-        try {
-          onSetIsLoading(true);
-          const db = await getDB();
-          await db.execute('DELETE FROM expected_delivery_items');
-          await db.execute('DELETE FROM expected_deliveries');
-          await db.execute('DELETE FROM product_aliases');
-          await db.execute('DELETE FROM spoiled_items');
-          await db.execute('DELETE FROM debt_payments');
-          await db.execute('DELETE FROM debts');
-          await db.execute('DELETE FROM sales');
-          await db.execute('DELETE FROM shift_reports');
-          await db.execute('DELETE FROM till_payouts');
-          await db.execute('DELETE FROM audit_logs');
-          await db.execute('DELETE FROM scan_history');
-          await db.execute('DELETE FROM products');
-          await db.execute('DELETE FROM users');
-          await db.execute('DELETE FROM settings');
-          localStorage.clear();
-          toast.success('Sistema limpo com sucesso! A reiniciar...');
-          setTimeout(() => window.location.reload(), 1500);
-        } catch (e) {
-          console.error(e);
-          toast.error('Erro ao limpar sistema.');
-          onSetIsLoading(false);
-        }
-      }
+  const { deactivateDevice } = useAuth();
+
+  const handleDeviceWipe = async () => {
+    try {
+      onSetIsLoading(true);
+      const toastId = toast.loading('A executar Device Wipe completo...');
+      await deactivateDevice();
+      toast.success('Dispositivo totalmente limpo! A redirecionar para activação...', { id: toastId });
+    } catch (e) {
+      console.error('Device wipe error:', e);
+      toast.error('Erro ao efetuar Device Wipe.');
+    } finally {
+      onSetIsLoading(false);
     }
   };
 
@@ -52,11 +36,13 @@ export function NumpadFooterActions({ onOpenRecovery, onSetIsLoading }: NumpadFo
       </button>
 
       <button
-        onClick={handleWipeSystem}
-        className="mt-4 text-[10px] font-bold text-slate-300 hover:text-rose-500 dark:text-zinc-700 dark:hover:text-rose-600 transition-colors cursor-pointer"
-        title="Limpar Sistema (Teste)"
+        type="button"
+        onClick={handleDeviceWipe}
+        className="mt-4 text-[10px] font-bold text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer flex items-center gap-1 bg-rose-50 dark:bg-rose-950/40 px-3 py-1.5 rounded-full border border-rose-200 dark:border-rose-900/40 shadow-xs"
+        title="Executar Device Wipe total e voltar à activação do dispositivo"
       >
-        WIPE SYSTEM
+        <Trash2 size={11} />
+        <span>DEVICE WIPE</span>
       </button>
     </>
   );

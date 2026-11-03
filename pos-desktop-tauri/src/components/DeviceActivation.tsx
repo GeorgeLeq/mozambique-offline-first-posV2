@@ -10,8 +10,8 @@ import toast from 'react-hot-toast';
 import { getHardwareFingerprint } from '../subscription/cryptoLicense';
 
 export default function DeviceActivation() {
-  const [shopCode, setShopCode] = useState('');
-  const [masterPin, setMasterPin] = useState('');
+  const [shopCode, setShopCode] = useState('SHOP-CMSNTG');
+  const [masterPin, setMasterPin] = useState('1234');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCreatingShop, setIsCreatingShop] = useState(false);
@@ -27,7 +27,7 @@ export default function DeviceActivation() {
   const [progressMessage, setProgressMessage] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const { activateDevice } = useAuth();
+  const { activateDevice, activateByMasterPin } = useAuth();
 
   // Network listener & keydown listener
   useEffect(() => {
@@ -72,19 +72,48 @@ export default function DeviceActivation() {
     }
   };
 
+  const handleQuickDemoPin = async (pin: string) => {
+    setMasterPin(pin);
+    setError('');
+    setIsLoading(true);
+    setProgressPercent(0);
+    setProgressMessage('A ligar ao Supabase Cloud com PIN Master...');
+    setTotalRecords(0);
+
+    const success = await activateByMasterPin(pin, (percent, msg, count) => {
+      setProgressPercent(percent);
+      setProgressMessage(msg);
+      setTotalRecords(count);
+    });
+
+    if (!success) {
+      setError('PIN Master inválido ou sem ligação.');
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     setProgressPercent(0);
-    setProgressMessage('Ligando ao Supabase Cloud...');
+    setProgressMessage('A validar com o Supabase Cloud...');
     setTotalRecords(0);
     
-    const success = await activateDevice(shopCode.trim(), masterPin.trim(), (percent, msg, count) => {
-      setProgressPercent(percent);
-      setProgressMessage(msg);
-      setTotalRecords(count);
-    });
+    let success = false;
+    if (shopCode.trim()) {
+      success = await activateDevice(shopCode.trim(), masterPin.trim(), (percent, msg, count) => {
+        setProgressPercent(percent);
+        setProgressMessage(msg);
+        setTotalRecords(count);
+      });
+    } else if (masterPin.trim()) {
+      success = await activateByMasterPin(masterPin.trim(), (percent, msg, count) => {
+        setProgressPercent(percent);
+        setProgressMessage(msg);
+        setTotalRecords(count);
+      });
+    }
 
     if (!success) {
       setError('Código de Loja ou PIN Master inválido. Por favor, tente novamente.');
@@ -207,6 +236,25 @@ export default function DeviceActivation() {
                   <p className="text-slate-500 dark:text-zinc-500 mt-2 font-medium">Introduza o código da loja para activar este computador.</p>
                 </div>
 
+                {/* Judge Hackathon Quick Access Card */}
+                <div className="bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 mb-5 text-left shadow-xs flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                      <span>🏆 Demonstração do Júri • Tech Wonders</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-zinc-300">
+                    Insira apenas o PIN Master <span className="font-mono font-bold bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-zinc-800">600329</span> ou clique no botão para activar instantaneamente:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDemoPin('600329')}
+                    className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>⚡ Activação Directa com PIN 600329</span>
+                  </button>
+                </div>
+
                 {/* Simulated Shop Credentials Copy Card */}
                 {createdCredentials && (
                   <div className="bg-indigo-950/20 border border-indigo-900 rounded-2xl p-4 mb-6 text-left relative z-10 shadow-sm">
@@ -260,29 +308,30 @@ export default function DeviceActivation() {
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-zinc-400 mb-2">Código da Loja</label>
-                    <input
-                      type="text"
-                      value={shopCode}
-                      onChange={(e) => setShopCode(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 outline-none transition-all shadow-sm"
-                      placeholder="Ex: LOJA-XPT"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-zinc-400 mb-2">PIN Master do Administrador</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-zinc-400 mb-2">PIN Master do Administrador *</label>
                     <input
                       type="password"
                       value={masterPin}
                       onChange={(e) => setMasterPin(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-slate-900 dark:text-zinc-100 outline-none transition-all shadow-sm"
+                      className="w-full px-5 py-4 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-slate-900 dark:text-zinc-100 outline-none transition-all shadow-sm font-mono text-center text-lg tracking-[0.3em]"
                       placeholder="••••••"
                       maxLength={6}
                       required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1 flex items-center justify-between">
+                      <span>Código da Loja (Opcional se usar PIN Master)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={shopCode}
+                      onChange={(e) => setShopCode(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 outline-none transition-all text-xs"
+                      placeholder="Ex: SHOP-A7X92B"
                     />
                   </div>
 

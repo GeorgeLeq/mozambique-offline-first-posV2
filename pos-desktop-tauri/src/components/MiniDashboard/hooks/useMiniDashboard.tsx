@@ -58,7 +58,7 @@ export function useMiniDashboard() {
       } else if (nowMs - lastConnectivityCheck.current > 180000) { // Check every 3 minutes max
         lastConnectivityCheck.current = nowMs;
         try {
-          const checkPromise = supabase.from('devices').select('id').limit(1).maybeSingle();
+          const checkPromise = supabase.from('system_config').select('key').limit(1).maybeSingle();
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
           const { error } = await Promise.race([checkPromise, timeoutPromise]) as any;
           isCloudOnline = !error;

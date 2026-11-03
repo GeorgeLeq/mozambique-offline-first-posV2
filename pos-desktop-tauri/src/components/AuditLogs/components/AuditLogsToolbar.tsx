@@ -30,6 +30,7 @@ export function AuditLogsToolbar({
 
   const categories: AuditCategory[] = [
     'Todos',
+    'Comandos IA & App Móvel',
     'Produtos',
     'Vendas',
     'Sessão / Login',
@@ -39,6 +40,7 @@ export function AuditLogsToolbar({
 
   const categoryLabelMap: Record<AuditCategory, string> = {
     'Todos': t.catAll || 'Todos',
+    'Comandos IA & App Móvel': 'IA & App Móvel',
     'Produtos': t.catProducts || 'Produtos',
     'Vendas': t.catSales || 'Vendas',
     'Sessão / Login': t.catSessionLogin || 'Sessão / Login',

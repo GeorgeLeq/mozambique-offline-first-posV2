@@ -26,7 +26,8 @@ export function OfflineUnlockModal() {
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
 
-  if (!isOfflineUnlockOpen) return null;
+  // Subscriptions suspended for Hackathon
+  return null;
 
   const handleCopyShopInfo = () => {
     const text = `Loja: ${shopId} | Terminal: ${deviceId} | HWID: ${hardwareFingerprint}`;

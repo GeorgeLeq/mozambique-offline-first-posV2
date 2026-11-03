@@ -7,6 +7,9 @@ import { findUserByPin } from '../../lib/security/crypto';
 import { useAuth } from '../../contexts/AuthContext';
 import { sanitizeString, sanitizeNumeric } from '../../lib/security/sanitizer';
 import { useI18n } from '../../i18n';
+import { VoiceInputButton } from '../common/VoiceInputButton';
+import { ParsedPettyCashResult } from '../../lib/ai/voiceIntentParser';
+import { Sparkles } from 'lucide-react';
 
 interface TillPayoutModalProps {
   isOpen: boolean;
@@ -38,12 +41,34 @@ export function TillPayoutModal({ isOpen, onClose, userId }: TillPayoutModalProp
 
   // Security configuration states loaded from SQLite
   const [authTriggerOpenDrawer, setAuthTriggerOpenDrawer] = useState<boolean>(true);
+  const [lastVoiceNote, setLastVoiceNote] = useState<string | null>(null);
+
+  // Handle voice recognition from Muse Voice Transcribe
+  const handleVoicePayoutParsed = (result: ParsedPettyCashResult) => {
+    if (result.amount > 0) {
+      setAmount(String(result.amount));
+    }
+    if (result.reason) {
+      setNote(result.reason);
+      const lower = result.reason.toLowerCase();
+      if (lower.includes('fornecedor') || lower.includes('mercadoria') || lower.includes('encomenda') || lower.includes('factura')) {
+        setReason(REASONS[0]);
+      } else if (lower.includes('dono') || lower.includes('patrao') || lower.includes('patrão') || lower.includes('gerente')) {
+        setReason(REASONS[2]);
+      } else {
+        setReason(REASONS[1]);
+      }
+    }
+    setLastVoiceNote(`Reconhecido: ${result.amount > 0 ? `${result.amount} MT — ` : ''}${result.reason}`);
+    toast.success('Saída preenchida por voz com Muse AI!', { icon: '🎙️' });
+  };
 
   // Reset states on close
   const handleCloseModal = () => {
     setAmount('');
     setReason(REASONS[0]);
     setNote('');
+    setLastVoiceNote(null);
     setStep('form');
     setManagerPin('');
     setPinError('');
@@ -233,6 +258,30 @@ export function TillPayoutModal({ isOpen, onClose, userId }: TillPayoutModalProp
 
               {step === 'form' ? (
                 <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Muse Voice Transcribe Payout Assistant */}
+                  <div className="bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-indigo-50/80 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-indigo-950/30 p-3.5 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-black text-indigo-900 dark:text-indigo-200 uppercase tracking-wider">
+                        <Sparkles size={14} className="text-indigo-600 dark:text-indigo-400" />
+                        <span>Ditar Saída por Voz (Muse AI)</span>
+                      </div>
+                      <VoiceInputButton
+                        mode="petty_cash"
+                        size="sm"
+                        label="Ditar Saída"
+                        cashierId={currentUser?.id}
+                        cashierName={currentUser?.name}
+                        shiftId={currentUser?.current_shift_start}
+                        onParsedPettyCash={handleVoicePayoutParsed}
+                      />
+                    </div>
+                    {lastVoiceNote && (
+                      <div className="text-[11px] font-mono font-medium text-indigo-700 dark:text-indigo-300 bg-white/70 dark:bg-zinc-900/70 px-2.5 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+                        {lastVoiceNote}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-2">
                       {t.amountMt || 'Valor (MT)'}

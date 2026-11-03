@@ -2,16 +2,31 @@ import { useEffect } from 'react';
 
 // Dispatch a custom event when a table is updated (debounced to coalesce bulk writes)
 const eventDebounceTimers: Record<string, any> = {};
+const lastNotifyTimestamp: Record<string, number> = {};
+const MIN_NOTIFY_COOLDOWN_MS = 300; // Enforce minimum 300ms cooldown to prevent recursive self-triggering loops
 
 export function notifyTableUpdate(tableName: string) {
   const normalized = tableName.toLowerCase();
+
+  // Ignore settings, config, and telemetry background writes from triggering UI table re-renders
+  if (normalized === 'settings' || normalized === 'system_config' || normalized === 'ai_command_logs' || normalized === 'audit_logs') {
+    return;
+  }
+
+  const now = Date.now();
+  if (lastNotifyTimestamp[normalized] && now - lastNotifyTimestamp[normalized] < MIN_NOTIFY_COOLDOWN_MS) {
+    return;
+  }
+
   if (eventDebounceTimers[normalized]) {
     clearTimeout(eventDebounceTimers[normalized]);
   }
+
   eventDebounceTimers[normalized] = setTimeout(() => {
     delete eventDebounceTimers[normalized];
+    lastNotifyTimestamp[normalized] = Date.now();
     window.dispatchEvent(new CustomEvent(`db_update_${normalized}`));
-  }, 50);
+  }, 150);
 }
 
 // React hook to listen for table updates

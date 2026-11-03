@@ -41,7 +41,13 @@ export async function syncDebtsToCloud(): Promise<boolean> {
       items_json: typeof d.items_json === 'string' ? d.items_json : (d.items_json ? JSON.stringify(d.items_json) : null)
     }));
 
-    const { error } = await supabase.from('debts').upsert(payload, { onConflict: 'id' });
+    let { error } = await supabase.from('debts').upsert(payload, { onConflict: 'id' });
+    if (error && (error.code === 'PGRST204' || error.message?.includes('is_deleted'))) {
+      // Fallback: Supabase debts table does not have is_deleted column yet
+      const fallbackPayload = payload.map(({ is_deleted, ...rest }) => rest);
+      const res = await supabase.from('debts').upsert(fallbackPayload, { onConflict: 'id' });
+      error = res.error;
+    }
     if (error) {
       console.warn('[Debts Sync] Supabase upsert skipped (offline/unreachable):', error.message || error);
       return false;
@@ -81,7 +87,8 @@ export async function syncDebtsFromCloud(): Promise<boolean> {
     const lastPull = lastPullSetting.length > 0 ? lastPullSetting[0].value : '1970-01-01T00:00:00.000Z';
     const nextPullTime = new Date().toISOString();
 
-    const { data: cloudDebts, error } = await supabase
+    let cloudDebts: any[] | null = null;
+    const dRes = await supabase
       .from('debts')
       .select('id, customer_name, amount_mt, status, is_deleted, phone_number, address, payment_method, cashier_name, items_json, created_at, paid_at, receipt_id')
       .eq('shop_id', shopId)
@@ -89,10 +96,27 @@ export async function syncDebtsFromCloud(): Promise<boolean> {
       .order('created_at', { ascending: true })
       .limit(200);
 
+    let dData: any[] | null = dRes.data;
+    let error = dRes.error;
+
+    if (error && (error.code === '42703' || error.message?.includes('is_deleted'))) {
+      // Fallback: Supabase debts table does not have is_deleted column yet
+      const fallback = await supabase
+        .from('debts')
+        .select('id, customer_name, amount_mt, status, phone_number, address, payment_method, cashier_name, items_json, created_at, paid_at, receipt_id')
+        .eq('shop_id', shopId)
+        .gt('created_at', lastPull)
+        .order('created_at', { ascending: true })
+        .limit(200);
+      dData = fallback.data as any[];
+      error = fallback.error;
+    }
+
     if (error) {
       console.warn('[Debts Sync] Supabase select skipped (offline/unreachable):', error.message, error.details);
       return false;
     }
+    cloudDebts = dData;
     if (!cloudDebts || cloudDebts.length === 0) {
       await db.execute(
         'INSERT OR REPLACE INTO settings (key, value, sync_status) VALUES (?, ?, 1)',

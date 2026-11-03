@@ -5,7 +5,6 @@ import { AmbientBackground } from '../AmbientBackground';
 import { useNumpadAuth } from './hooks/useNumpadAuth';
 import { useAdminRecovery } from './hooks/useAdminRecovery';
 import { NumpadDisplay } from './components/NumpadDisplay';
-import { NumpadGrid } from './components/NumpadGrid';
 import { CashShiftModal } from './components/CashShiftModal';
 import { AdminRecoveryModal } from './components/AdminRecoveryModal';
 import { NumpadFooterActions } from './components/NumpadFooterActions';
@@ -65,33 +64,13 @@ export default function NumpadLogin() {
       >
         <div className="absolute inset-0 rounded-[3.5rem] bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
         
-        {/* Shield Icon & PIN Dots */}
-        <NumpadDisplay pin={pin} error={error} />
-
-        {/* 0-9 Numpad Grid */}
-        <NumpadGrid
-          onNumberClick={handleNumberClick}
-          onClear={handleClear}
-          onDelete={handleDelete}
+        {/* SYCOMM Hero Brand & Enter Button */}
+        <NumpadDisplay
+          pin={pin}
+          error={error}
+          onQuickPin={(qpin) => handleLogin(qpin)}
+          isLoading={isGlobalLoading}
         />
-
-        {/* Submit Button */}
-        <div className="w-full max-w-[280px] mt-6">
-          <button
-            disabled={pin.length < 4 || isGlobalLoading}
-            onClick={() => handleLogin(pin)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 disabled:opacity-50 disabled:bg-slate-200 dark:disabled:bg-zinc-800 disabled:cursor-not-allowed text-white font-bold py-4 rounded-[1.5rem] transition-all duration-300 shadow-md shadow-indigo-600/20 active:scale-95 uppercase tracking-wider text-sm flex justify-center items-center gap-2 relative overflow-hidden cursor-pointer"
-          >
-            {isGlobalLoading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
-                <span>A processar...</span>
-              </div>
-            ) : (
-              'Entrar'
-            )}
-          </button>
-        </div>
 
         {/* Footer Links & Actions */}
         <NumpadFooterActions

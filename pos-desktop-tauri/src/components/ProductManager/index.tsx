@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDB } from '../../lib/db';
+import { supabase } from '../../lib/supabase';
 import { Product } from '../../lib/api';
 import { useTableWatcher } from '../../lib/dbEvents';
 
@@ -94,11 +95,28 @@ export default function ProductManager({ onBack, defaultTab = 'checker' }: Produ
         setIsProductsLoading(true);
       }
       const db = await getDB();
-      const allProducts = await db.select('SELECT * FROM products WHERE is_deleted IS NULL OR is_deleted = 0 ORDER BY name ASC') as Product[];
-      setProducts(allProducts);
+      const isTauri = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_METADATA__' in window);
+
+      let allProducts = await db.select('SELECT * FROM products WHERE is_deleted IS NULL OR is_deleted = 0 ORDER BY name ASC') as Product[];
+
+      if (!isTauri && (!allProducts || allProducts.length === 0)) {
+        try {
+          const shopIdSetting = await db.select("SELECT value FROM settings WHERE key = 'shop_id'").catch(() => []);
+          const shopId = shopIdSetting?.[0]?.value;
+          if (shopId) {
+            const { data: cloudProds } = await supabase.from('products').select('*').eq('shop_id', shopId).order('name', { ascending: true });
+            if (cloudProds && cloudProds.length > 0) {
+              allProducts = cloudProds as any[];
+            }
+          }
+        } catch (_e) {}
+      }
+
+      setProducts(allProducts || []);
 
       const available = await db.select("SELECT barcode FROM barcodes WHERE status = 'available' LIMIT 100") as {barcode: string}[];
-      setAvailableBarcodes(available.map(a => a.barcode));
+      setAvailableBarcodes((available || []).map(a => a.barcode));
 
       // Refresh catalog quota usage & delivery quota usage
       const [usageStats, delivStats] = await Promise.all([

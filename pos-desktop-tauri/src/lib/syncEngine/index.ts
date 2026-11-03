@@ -22,6 +22,8 @@ import {
 } from './subscriptions';
 import { syncLiveMetricsToCloud } from './liveMetrics';
 import { syncSystemConfigFromCloud } from './systemConfig';
+import { syncVoiceAuditsToCloud } from './voiceAudits';
+import { syncAiCommandLogsToCloud, syncAiCommandLogsFromCloud } from './aiCommandLogs';
 import { loadEntitlementsFromDb } from '../../subscription/subscriptionDb';
 
 import { isSupabaseConfigured } from '../supabase';
@@ -29,7 +31,7 @@ import { isSupabaseConfigured } from '../supabase';
 // Concurrency lock to prevent overlapping background sync intervals
 let isSyncing = false;
 let lastSyncTime = 0;
-const MIN_SYNC_INTERVAL_MS = 10000; // Enforce minimum 10s cooldown between full sync cycles
+const MIN_SYNC_INTERVAL_MS = 30000; // Enforce minimum 30s cooldown between full sync cycles
 
 export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork: boolean }> {
   if (!isSupabaseConfigured()) {
@@ -38,12 +40,10 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
 
   const now = Date.now();
   if (now - lastSyncTime < MIN_SYNC_INTERVAL_MS) {
-    console.log('[Sync Engine] Rate-limit active. Skipping full sync cycle to prevent redundant SQLite/network congestion.');
     return { success: true, hasMoreWork: false };
   }
 
   if (isSyncing) {
-    console.log('[Sync Engine] Sync is already in progress. Skipping overlapping schedule execution.');
     return { success: false, hasMoreWork: false };
   }
 
@@ -63,7 +63,7 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
       await syncSubscriptionPaymentsToCloud();
       await syncSubscriptionPaymentsFromCloud();
     } catch (subErr) {
-      console.warn('[Sync Engine] Subscription / System Config synchronization warning:', subErr);
+      // Subscriptions sync note
     }
 
     // 3. Verify if Cloud Backup & Sync Engine is unlocked (Pro/Enterprise feature)
@@ -71,13 +71,11 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
     const isCloudBackupUnlocked = Boolean(entitlements['cloud_backup']?.is_unlocked);
 
     if (!isCloudBackupUnlocked) {
-      console.log('[Sync Engine] Plano Grátis / Cópia em Nuvem Bloqueada. Dados de vendas, fechos e inventário permanecem 100% locais no SQLite.');
-      
       // Free users still perform live metrics sync ONLY IF companion app was specifically bought as an add-on
       try {
         await syncLiveMetricsToCloud();
       } catch (metricsErr) {
-        console.warn('[Sync Engine] Live metrics sync warning for companion app:', metricsErr);
+        // Metrics note
       }
 
       if (typeof window !== 'undefined') {
@@ -88,8 +86,6 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
 
       return { success: true, hasMoreWork: false };
     }
-
-    console.log('[Sync Engine] Plano Pro/Empresarial Ativo: A iniciar sincronização completa com Supabase...');
 
     // Define the logical execution order for syncing data tables one by one.
     // Core configurations & users are sync'd first, followed by products/inventory, deliveries, sales, debts, and write-only telemetry.
@@ -114,6 +110,9 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
       { name: 'Till Payouts (To)', fn: syncTillPayoutsToCloud },
       { name: 'Spoiled Items (To)', fn: syncSpoiledItemsToCloud },
       { name: 'Audit Logs (To)', fn: syncAuditLogsToCloud },
+      { name: 'AI Voice Audits (To)', fn: syncVoiceAuditsToCloud },
+      { name: 'AI Command Logs (To)', fn: syncAiCommandLogsToCloud },
+      { name: 'AI Command Logs (From)', fn: syncAiCommandLogsFromCloud },
       { name: 'Scan History (To)', fn: syncScanHistoryToCloud },
       { name: 'Notifications (To)', fn: syncNotificationsToCloud },
       { name: 'Notifications (From)', fn: syncNotificationsFromCloud },
@@ -127,18 +126,11 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
     let overallSuccess = true;
     let anyMoreWork = false;
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('pos-sync-status', {
-        detail: { status: 'syncing', progress: 10 }
-      }));
-    }
-
     let completedTasks = 0;
     const totalTasks = syncTasks.length;
 
     for (const task of syncTasks) {
-      // Intentionally delay each task by 100ms to allow concurrent SQLite operations from the cashiers to complete instantly without locks
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 60));
 
       try {
         const result = await task.fn();
@@ -146,17 +138,9 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
           anyMoreWork = true;
         }
       } catch (taskErr) {
-        console.error(`[Sync Engine] Error during "${task.name}" step:`, taskErr);
         overallSuccess = false;
       }
       completedTasks++;
-      const progressPercent = Math.min(99, Math.round((completedTasks / totalTasks) * 100));
-      if (typeof window !== 'undefined') {
-        const targetModule = task.name.toLowerCase().includes('product') ? 'products' : task.name.toLowerCase().includes('deliver') ? 'deliveries' : 'all';
-        window.dispatchEvent(new CustomEvent('pos-sync-status', {
-          detail: { status: 'syncing', progress: progressPercent, module: targetModule }
-        }));
-      }
     }
 
     if (typeof window !== 'undefined') {

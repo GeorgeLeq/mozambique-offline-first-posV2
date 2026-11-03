@@ -60,7 +60,7 @@ export function RecentSalesModal({ isOpen, onClose }: RecentSalesModalProps) {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               onClick={onClose}
-              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/75 "
             />
 
             {/* Slide-over Drawer / Fullscreen Container */}

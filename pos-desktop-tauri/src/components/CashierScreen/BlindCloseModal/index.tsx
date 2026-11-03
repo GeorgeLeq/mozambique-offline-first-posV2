@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, LogOut, FileText, Calculator, Keyboard } from 'lucide-react';
+import { X, LogOut, FileText, Calculator, Keyboard, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getDB } from '../../../lib/db';
 import { GroupedShiftSale } from './BlindCloseTypes';
@@ -9,6 +9,8 @@ import { BlindCloseAudit } from './BlindCloseAudit';
 import { useAuth } from '../../../contexts/AuthContext';
 import { sanitizeNumeric } from '../../../lib/security/sanitizer';
 import { useI18n } from '../../../i18n';
+import { VoiceInputButton } from '../../common/VoiceInputButton';
+import { ParsedCashUpResult } from '../../../lib/ai/voiceIntentParser';
 
 interface BlindCloseModalProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
   const [reportedAmount, setReportedAmount] = useState('');
   const [mode, setMode] = useState<'manual' | 'calculator'>('manual');
   const [counts, setCounts] = useState<Record<number, number>>({});
+  const [voiceSummary, setVoiceSummary] = useState<string | null>(null);
 
   const canBypass = useMemo(() => {
     if (currentUser?.role === 'Admin') return true;
@@ -44,11 +47,30 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
     if (isOpen) {
       setReportedAmount('');
       setCounts({});
+      setVoiceSummary(null);
       setMode('manual');
       setIsSalesHistoryOpen(false);
       loadShiftSales();
     }
   }, [isOpen]);
+
+  const handleApplyVoiceCounts = (parsedCounts: Record<number, number>, summaryText?: string) => {
+    setCounts(prev => {
+      const next = { ...prev };
+      for (const [denomStr, count] of Object.entries(parsedCounts)) {
+        const denom = parseFloat(denomStr);
+        if (count > 0) {
+          next[denom] = count;
+        }
+      }
+      return next;
+    });
+    if (summaryText) {
+      setVoiceSummary(summaryText);
+    }
+    setMode('calculator');
+    toast.success('Contagem preenchida por voz via Muse AI!', { icon: '🎙️' });
+  };
 
   const loadShiftSales = async () => {
     setLoadingSales(true);
@@ -236,12 +258,12 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
                   </p>
                 </div>
                 
-                {/* Mode Selector Tab Bar */}
-                <div className="flex bg-slate-100 dark:bg-zinc-950 p-1.5 rounded-2xl mt-5 border border-slate-200/50 dark:border-zinc-855/80">
+                {/* Mode Selector Tab Bar with Muse AI Voice Assistant */}
+                <div className="flex flex-wrap items-center bg-slate-100 dark:bg-zinc-950 p-1.5 rounded-2xl mt-5 border border-slate-200/50 dark:border-zinc-855/80 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setMode('manual')}
-                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all duration-300 ${
+                    className={`flex-1 min-w-[120px] py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all duration-300 ${
                       mode === 'manual' 
                         ? 'bg-white dark:bg-zinc-850 text-indigo-600 dark:text-indigo-400 shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-slate-150 dark:border-zinc-800' 
                         : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
@@ -252,7 +274,7 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
                   <button
                     type="button"
                     onClick={() => setMode('calculator')}
-                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 transition-all duration-300 ${
+                    className={`flex-1 min-w-[140px] py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5 transition-all duration-300 ${
                       mode === 'calculator' 
                         ? 'bg-white dark:bg-zinc-850 text-indigo-600 dark:text-indigo-400 shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-slate-150 dark:border-zinc-800' 
                         : 'text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200'
@@ -260,6 +282,17 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
                   >
                     <Calculator size={14} /> {t.billCalculator || 'Calculadora de Notas'}
                   </button>
+                  <div className="flex items-center">
+                    <VoiceInputButton
+                      mode="cash_up"
+                      size="sm"
+                      label="Contar por Voz"
+                      cashierId={currentUser?.id}
+                      cashierName={currentUser?.name}
+                      shiftId={currentUser?.current_shift_start}
+                      onParsedCashUp={(res) => handleApplyVoiceCounts(res.counts, res.matchedPhrases.join(', '))}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -299,7 +332,15 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
                       counts={counts}
                       onCountChange={handleCountChange}
                       calculatedTotal={calculatedTotal}
-                      onClear={() => setCounts({})}
+                      onClear={() => {
+                        setCounts({});
+                        setVoiceSummary(null);
+                      }}
+                      onVoiceCounts={handleApplyVoiceCounts}
+                      voiceSummary={voiceSummary}
+                      cashierId={currentUser?.id}
+                      cashierName={currentUser?.name}
+                      shiftId={currentUser?.current_shift_start}
                     />
                   )}
                 </div>

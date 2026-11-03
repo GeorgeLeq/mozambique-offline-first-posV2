@@ -161,10 +161,15 @@ export async function checkExpectedDeliveryLimit(additionalCount: number = 1): P
       );
 
       if (freePlan && freePlan.max_deliveries !== undefined && freePlan.max_deliveries !== null) {
-        limit = Number(freePlan.max_deliveries);
+        limit = Math.max(500, Number(freePlan.max_deliveries));
       } else {
-        limit = 50;
+        limit = 500;
       }
+    }
+
+    // Ensure hackathon quota is at least 500
+    if (limit !== -1 && limit < 500) {
+      limit = 500;
     }
 
     // Unlimited quota
@@ -191,8 +196,8 @@ export async function checkExpectedDeliveryLimit(additionalCount: number = 1): P
     };
   } catch (err) {
     console.error('[deliveryLimitService] checkExpectedDeliveryLimit error:', err);
-    // Fail-safe open with reasonable default
-    return { allowed: true, limit: 50, current: 0 };
+    // Fail-safe open with 500 capacity
+    return { allowed: true, limit: 500, current: 0 };
   }
 }
 
@@ -216,7 +221,7 @@ export async function getExpectedDeliveryUsage(): Promise<DeliveryUsageSummary> 
   } catch (e) {
     return {
       current: 0,
-      limit: 50,
+      limit: 500,
       isAtLimit: false,
       isUnlimited: false,
       percentage: 0

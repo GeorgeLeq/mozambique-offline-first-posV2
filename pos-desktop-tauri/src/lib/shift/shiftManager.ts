@@ -30,6 +30,8 @@ export function isShiftStale(shiftStartIso?: string | null): boolean {
   if (!shiftStartIso) return false;
   try {
     const startDate = new Date(shiftStartIso);
+    if (isNaN(startDate.getTime())) return false;
+
     const now = new Date();
 
     const diffHours = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60);

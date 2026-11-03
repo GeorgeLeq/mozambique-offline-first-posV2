@@ -3,7 +3,7 @@ import { Product } from '../../lib/api';
 import { Search, Package, Hash, Tag, RefreshCw, Eye, Layers, ClipboardList, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { sanitizeString } from '../../lib/security/sanitizer';
-import { useI18n, getLanguage, LanguageCode } from '../../lib/i18n';
+import { useI18n, getLanguage, LanguageCode } from '../../i18n';
 import { SyncDot } from './ProductList/ProductTable';
 import { OvershadowSearchPill } from '../common/OvershadowSearchPill';
 

@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 
 export const getActionCategory = (action: string): AuditCategory => {
   const act = (action || '').toUpperCase();
+  if (act.includes('MUSE') || act.includes('AI_') || act.includes('VOICE') || act.includes('COMPANION') || act.includes('SPARK')) {
+    return 'Comandos IA & App Móvel';
+  }
   if (act.includes('PRODUCT') || act.includes('ALIAS') || act.includes('STOCK')) {
     return 'Produtos';
   }
@@ -57,13 +60,44 @@ export function useAuditLogs() {
     try {
       setIsLoading(true);
       const db = await getDB();
-      const loadedLogs = await db.select('SELECT * FROM audit_logs ORDER BY created_at DESC') as AuditLog[];
-      setLogs(loadedLogs || []);
+      const loadedLogs = (await db.select('SELECT * FROM audit_logs ORDER BY created_at DESC')) as AuditLog[];
 
-      const loadedUsers = await db.select('SELECT id, name FROM users') as { id: string; name: string }[];
+      // Also pull AI & Companion App commands so the manager sees full trail of voice/text actions
+      let aiLogsAsAudits: AuditLog[] = [];
+      try {
+        const aiCommands = (await db.select('SELECT * FROM ai_command_logs ORDER BY created_at DESC LIMIT 50')) as any[];
+        aiLogsAsAudits = (aiCommands || []).map((cmd) => {
+          const originLabel = cmd.device_origin === 'companion_app' ? 'App Móvel (Boss on the Go)' : 'POS Balcão';
+          const typeLabel = cmd.input_type === 'voice' ? 'Voz Muse' : 'Texto';
+          return {
+            id: cmd.id,
+            user_id: cmd.user_id || 'ai-assistant',
+            user_name: cmd.user_name || originLabel,
+            action: `MUSE_AI_${(cmd.tool_called || cmd.detected_intent || 'COMMAND').toUpperCase()}`,
+            details: `[${originLabel} - ${typeLabel}] "${cmd.raw_input || cmd.transcription || ''}". Estado: ${cmd.execution_status}`,
+            created_at: cmd.created_at || cmd.client_timestamp,
+            sync_status: cmd.sync_status ?? 1,
+          };
+        });
+      } catch (err) {
+        console.warn('Could not load ai_command_logs into audits:', err);
+      }
+
+      // Merge and deduplicate by ID, then sort DESC
+      const existingAuditIds = new Set((loadedLogs || []).map((l) => l.id));
+      const combined = [...(loadedLogs || [])];
+      for (const aiL of aiLogsAsAudits) {
+        if (!existingAuditIds.has(aiL.id)) {
+          combined.push(aiL);
+        }
+      }
+      combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setLogs(combined);
+
+      const loadedUsers = (await db.select('SELECT id, name FROM users')) as { id: string; name: string }[];
       const mapping: Record<string, string> = {};
       if (Array.isArray(loadedUsers)) {
-        loadedUsers.forEach(u => {
+        loadedUsers.forEach((u) => {
           mapping[u.id] = u.name;
         });
       }

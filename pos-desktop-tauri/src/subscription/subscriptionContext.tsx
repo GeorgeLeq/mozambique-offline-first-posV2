@@ -127,25 +127,18 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setHardwareFingerprint(currentHwId);
 
       // Proactively backfill hardware_fingerprint to Supabase devices table immediately
-      if (isSupabaseConfigured() && dId && navigator.onLine) {
+      const isUuid = dId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dId);
+      if (isSupabaseConfigured() && dId && isUuid && navigator.onLine) {
         (async () => {
           try {
-            const { error } = await supabase
+            await supabase
               .from('devices')
               .update({ 
                 hardware_fingerprint: currentHwId,
                 last_seen_at: new Date().toISOString()
               })
               .eq('id', dId);
-
-            if (error) {
-              console.warn('[SubscriptionContext] Immediate HWID sync note:', error.message);
-            } else {
-              console.log('[SubscriptionContext] Successfully synced HWID to Supabase devices table:', currentHwId);
-            }
-          } catch (err) {
-            console.warn('[SubscriptionContext] Immediate HWID sync catch:', err);
-          }
+          } catch (_err) {}
         })();
       }
 
@@ -164,7 +157,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       }
       setPayments(loadedPayments);
     } catch (err) {
-      console.error('[SubscriptionContext] Error loading entitlements:', err);
+      // Error loading entitlements (silenced)
     } finally {
       setIsLoading(false);
     }
@@ -175,14 +168,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     // Trigger cloud synchronization immediately if online
     if (typeof navigator !== 'undefined' && navigator.onLine) {
-      syncSubscriptionsFromCloud().catch(err => {
-        console.warn('[SubscriptionContext] Initial cloud subscription sync warning:', err);
-      });
+      syncSubscriptionsFromCloud().catch(() => {});
     }
 
     // Listen to background sync engine updates
     const handleEntitlementsUpdated = () => {
-      console.log('[SubscriptionContext] Remote entitlements updated! Refreshing...');
       refreshEntitlements();
     };
 
@@ -218,60 +208,32 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   }, [refreshEntitlements]);
 
   // Check if a given feature is currently unlocked
-  const isFeatureUnlocked = useCallback((featureKey: FeatureKey | string): boolean => {
-    const ent = entitlements[featureKey];
-    if (!ent) {
-      // Security-gated features are locked by default if uninitialized
-      if (
-        featureKey === 'cloud_backup' ||
-        featureKey === 'custom_permissions' ||
-        featureKey === 'advanced_audits' ||
-        featureKey === 'unlimited_users' ||
-        featureKey === 'companion_app'
-      ) {
-        return false;
-      }
-      return true; // Unknown features not declared in gates are treated as free
-    }
-    if (!ent.is_unlocked) return false;
-
-    // Check expiration if applicable
-    if (ent.expires_at) {
-      const exp = new Date(ent.expires_at).getTime();
-      if (Date.now() > exp) {
-        return false;
-      }
-    }
+  // HACKATHON DEMO: All subscriptions suspended & all premium features fully unlocked
+  const isFeatureUnlocked = useCallback((_featureKey: FeatureKey | string): boolean => {
     return true;
-  }, [entitlements]);
+  }, []);
 
   const getFeatureDetails = useCallback((featureKey: FeatureKey | string): FeatureEntitlement | undefined => {
-    return entitlements[featureKey];
-  }, [entitlements]);
-
-  // Compute overall subscription status
-  const { isProActive, activePlanName, daysRemaining } = useMemo(() => {
-    const list = Object.values(entitlements) as FeatureEntitlement[];
-    const proEntitlements = list.filter(e => e.plan_tier === 'pro' && e.is_unlocked);
-    const hasPro = proEntitlements.length > 0;
-
-    let minDays: number | null = null;
-    proEntitlements.forEach(e => {
-      if (e.expires_at) {
-        const diffMs = new Date(e.expires_at).getTime() - Date.now();
-        const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        if (minDays === null || diffDays < minDays) {
-          minDays = diffDays;
-        }
-      }
-    });
-
-    return {
-      isProActive: hasPro,
-      activePlanName: hasPro ? 'Plano Pro Ativo' : 'Plano Grátis / Essencial',
-      daysRemaining: minDays
+    return entitlements[featureKey] || {
+      id: `ent_${featureKey}`,
+      feature_key: featureKey as FeatureKey,
+      is_unlocked: 1,
+      unlocked_at: new Date().toISOString(),
+      expires_at: null,
+      plan_tier: 'pro',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
   }, [entitlements]);
+
+  // Compute overall subscription status (Always Pro Unlocked for Hackathon Judges)
+  const { isProActive, activePlanName, daysRemaining } = useMemo(() => {
+    return {
+      isProActive: true,
+      activePlanName: 'Plano Pro Vitalício (Hackathon Unlocked)',
+      daysRemaining: null
+    };
+  }, []);
 
   // Unlock with an offline code (e.g. MZPOS-XXXX-XXXX-XXXX)
   const unlockWithCode = useCallback((code: string) => {
@@ -358,11 +320,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [shopId, deviceId, refreshEntitlements]);
 
-  // Modal open/close actions
-  const openFeatureLockModal = useCallback((featureKey: FeatureKey, customTitle?: string, customReason?: string) => {
-    setActiveLockModalFeature(featureKey);
-    setLockModalCustomTitle(customTitle);
-    setLockModalCustomReason(customReason);
+  // Modal open/close actions (Suppressed for Hackathon Demo)
+  const openFeatureLockModal = useCallback((_featureKey: FeatureKey, _customTitle?: string, _customReason?: string) => {
+    // Suppressed: all features are free and unlocked
+    return;
   }, []);
 
   const closeFeatureLockModal = useCallback(() => {

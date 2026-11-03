@@ -10,6 +10,7 @@ import { initializeSchema } from './schema';
 import { defaultSettings, keysToRemoveOnWipe } from './defaults';
 import { withEventDispatcher } from '../dbEvents';
 import { applyDatabaseSecurity } from '../security/dbKey';
+import { ensureDemoRetailData } from './seedDemoData';
 
 // Cache the active connection globally so we don't reload or dual-bind to the SQLite file
 let dbInstance: any = null;
@@ -116,6 +117,9 @@ export async function initDB(): Promise<any> {
         console.error('Failed to pre-hydrate settings cache in localStorage for mock:', err);
       }
 
+      // Seed standard demo data (products, debts, deliveries) if missing
+      await ensureDemoRetailData(dbInstance);
+
       return dbInstance;
     }
 
@@ -153,6 +157,9 @@ export async function initDB(): Promise<any> {
         console.warn(`Failed to seed default setting: ${item.key}`, err);
       }
     }
+
+    // Seed standard demo data (products, debts, deliveries) if missing
+    await ensureDemoRetailData(dbInstance);
 
     // Hot-load all local settings into local storage for fast synchronous reads in React
     try {
@@ -192,9 +199,10 @@ export async function getDB(): Promise<any> {
 
 /**
  * Safely purges all cashier transaction files, logs, settings, and shifts from local memory.
- * Re-seeds clean default variables afterward. Avoids cross-tenant database leaks.
+ * If isFullWipe is true, purges all database tables completely without re-seeding defaults.
+ * Otherwise, re-seeds clean default variables afterward. Avoids cross-tenant database leaks.
  */
-export async function wipeLocalData(): Promise<void> {
+export async function wipeLocalData(isFullWipe = false): Promise<void> {
   try {
     const isTauri = '__TAURI_INTERNALS__' in window;
     const db = await getDB();
@@ -207,6 +215,8 @@ export async function wipeLocalData(): Promise<void> {
       console.log('Wiping physical SQLite storage tables.');
       
       const tables = [
+        'expected_delivery_items',
+        'expected_deliveries',
         'users',
         'products',
         'product_aliases',
@@ -220,7 +230,12 @@ export async function wipeLocalData(): Promise<void> {
         'notifications',
         'till_payouts',
         'scan_history',
-        'settings'
+        'emergency_tokens',
+        'pos_announcements',
+        'ai_command_logs',
+        'ai_voice_audit_logs',
+        'settings',
+        'system_config'
       ];
 
       for (const table of tables) {
@@ -230,18 +245,23 @@ export async function wipeLocalData(): Promise<void> {
       }
     }
 
-    // Clear local cache vectors to ensure total state reset
-    keysToRemoveOnWipe.forEach(key => {
-      localStorage.removeItem(key);
-    });
+    if (isFullWipe) {
+      localStorage.clear();
+      sessionStorage.clear();
+    } else {
+      // Clear local cache vectors to ensure total state reset
+      keysToRemoveOnWipe.forEach(key => {
+        localStorage.removeItem(key);
+      });
 
-    // Re-seed clean defaults
-    for (const item of defaultSettings) {
-      await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [item.key, item.value]).catch(() => {});
-      localStorage.setItem(item.key, item.value);
+      // Re-seed clean defaults
+      for (const item of defaultSettings) {
+        await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [item.key, item.value]).catch(() => {});
+        localStorage.setItem(item.key, item.value);
+      }
     }
 
-    console.log('Local data wipe and fresh-defaults bootstrap finished successfully.');
+    console.log('Local data wipe finished successfully.');
   } catch (error) {
     console.error('Failed to wipe local data:', error);
     throw error;

@@ -1,4 +1,4 @@
-import { executeMockQuery } from './execute';
+import { executeMockQuery } from './Execute';
 import { selectMockQuery } from './select';
 import { resetMockStorage } from './storage';
 

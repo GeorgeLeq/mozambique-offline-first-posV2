@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCcw, Pause, Play, Search, ArrowLeftRight, Wallet, Receipt, UserCheck, Info, Megaphone } from 'lucide-react';
+import { RotateCcw, Pause, Play, Search, ArrowLeftRight, Wallet, Receipt, UserCheck, Info, Megaphone, Tv } from 'lucide-react';
 import { InternetStatusBadge } from '../InternetStatusBadge';
 import { FullscreenButton } from '../FullscreenButton';
 import { CashierInfoModal } from './CashierInfoModal';
@@ -21,6 +21,9 @@ interface CashierHeaderProps {
   announcementCount?: number;
   onOpenAnnouncements?: () => void;
   hasUrgentAnnouncement?: boolean;
+  onOpenCustomerDisplay?: () => void;
+  onTogglePiP?: () => void;
+  isPiPOpen?: boolean;
 }
 
 export function CashierHeader({ 
@@ -38,7 +41,10 @@ export function CashierHeader({
   toggleRefundMode,
   announcementCount = 0,
   onOpenAnnouncements,
-  hasUrgentAnnouncement = false
+  hasUrgentAnnouncement = false,
+  onOpenCustomerDisplay,
+  onTogglePiP,
+  isPiPOpen = false
 }: CashierHeaderProps) {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const t = useI18n();
@@ -214,6 +220,35 @@ export function CashierHeader({
           <RotateCcw size={13} />
           <span>{t.recentSalesHistory || 'Histórico'}</span>
         </button>
+
+        <div className="w-px h-5 bg-slate-200 dark:bg-zinc-850 mx-0.5 hidden sm:block"></div>
+
+        {/* Customer Display (2º Ecrã / PiP) Pill */}
+        {onOpenCustomerDisplay && (
+          <div className="flex items-center rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-zinc-900 p-0.5 shadow-xs">
+            <button
+              onClick={onOpenCustomerDisplay}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white font-bold text-xs cursor-pointer rounded-lg hover:bg-indigo-100 dark:hover:bg-zinc-800 transition-colors"
+              title={t.customerDisplayTooltip || 'Abrir Ecrã do Cliente (Segunda Janela para Monitor 2)'}
+            >
+              <Tv size={13} className="text-indigo-600 dark:text-indigo-400" />
+              <span>{t.customerDisplay || 'Ecrã Cliente'}</span>
+            </button>
+            {onTogglePiP && (
+              <button
+                onClick={onTogglePiP}
+                className={`px-1.5 py-1 text-[10px] font-black uppercase rounded-md transition-colors cursor-pointer ${
+                  isPiPOpen
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-indigo-500 dark:text-indigo-400 hover:bg-indigo-200/60 dark:hover:bg-zinc-800'
+                }`}
+                title={t.customerDisplayPiPTooltip || (isPiPOpen ? 'Fechar Prévia PiP' : 'Activar Miniatura PiP')}
+              >
+                {t.customerDisplayPiP || 'PiP'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Cashier Guide & Info Modal */}

@@ -22,52 +22,48 @@ export async function checkDeviceHeartbeat(): Promise<boolean> {
       return true; 
     }
 
-    const { data, error } = await supabase
-      .from('devices')
-      .select('id, is_active')
-      .eq('id', deviceId)
-      .maybeSingle();
-
-    if (error) {
-      // Network error, assume offline, allow to continue working seamlessly
-      return true;
-    }
-
+    let deviceActive = true;
     const hwFingerprint = getHardwareFingerprint();
 
-    // If device row does not exist in Supabase yet, register it now
-    if (!data) {
-      console.log('[Heartbeat] Device not found in cloud registry. Registering terminal in devices table...');
-      await supabase.from('devices').upsert({
-        id: deviceId,
-        shop_id: shopId,
-        name: shopName ? `${shopName} - Caixa` : 'Caixa Principal',
-        hardware_fingerprint: hwFingerprint,
-        is_active: true,
-        last_seen_at: new Date().toISOString()
-      }, { onConflict: 'id' });
-    } else if (data.is_active === false) {
-      // KILL SWITCH ACTIVATED: Merchant or Admin deactivated device from Command Central
-      console.error("SECURITY ALERT: Device deactivated from Command Central. Wiping local data.");
-      
-      // Wipe sensitive local data to prevent unauthorized access
-      await db.execute("DELETE FROM settings");
-      await db.execute("DELETE FROM users");
-      await db.execute("DELETE FROM products");
-      await db.execute("DELETE FROM sales");
-      
-      // Dispatch event to UI to force logout and return to activation screen
-      window.dispatchEvent(new CustomEvent('device-deactivated'));
-      return false;
-    } else {
-      // Device is active - update last_seen_at timestamp and ensure hardware_fingerprint is saved
-      await supabase
+    try {
+      const { data, error } = await supabase
         .from('devices')
-        .update({ 
-          last_seen_at: new Date().toISOString(),
-          hardware_fingerprint: hwFingerprint
-        })
-        .eq('id', deviceId);
+        .select('id, is_active')
+        .eq('id', deviceId)
+        .maybeSingle();
+
+      if (!error && data) {
+        if (data.is_active === false) {
+          console.error("SECURITY ALERT: Device deactivated from Command Central. Wiping local data.");
+          await db.execute("DELETE FROM settings");
+          await db.execute("DELETE FROM users");
+          await db.execute("DELETE FROM products");
+          await db.execute("DELETE FROM sales");
+          window.dispatchEvent(new CustomEvent('device-deactivated'));
+          return false;
+        } else {
+          await supabase
+            .from('devices')
+            .update({ 
+              last_seen_at: new Date().toISOString(),
+              hardware_fingerprint: hwFingerprint
+            })
+            .eq('id', deviceId);
+        }
+      } else if (!data) {
+        try {
+          await supabase.from('devices').upsert({
+            id: deviceId,
+            shop_id: shopId,
+            name: shopName ? `${shopName} - Caixa` : 'Caixa Principal',
+            hardware_fingerprint: hwFingerprint,
+            is_active: true,
+            last_seen_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        } catch (_upsertErr) {}
+      }
+    } catch (deviceErr) {
+      console.warn('[Heartbeat] Devices check bypassed safely:', deviceErr);
     }
 
     // Approach A: Synchronize local barcode aggregate usage to Supabase shops table

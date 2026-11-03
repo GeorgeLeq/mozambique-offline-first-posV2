@@ -5,7 +5,6 @@ import { mockStorage } from './storage';
  * Simulates query execution by filtering keys and values from the internal Map stores.
  */
 export const selectMockQuery = async <T>(query: string, bindValues?: any[]): Promise<T> => {
-  console.log('[Mock DB] Select:', query, bindValues);
   
   if (query.includes('FROM settings WHERE key')) {
     const key = bindValues?.[0];
@@ -230,11 +229,61 @@ export const selectMockQuery = async <T>(query: string, bindValues?: any[]): Pro
   }
 
   if (query.includes('FROM audit_logs')) {
-    return Array.from(mockStorage.audit_logs.values()) as unknown as T;
+    let list = Array.from(mockStorage.audit_logs.values());
+    if (query.includes('ORDER BY created_at DESC')) {
+      list.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    }
+    return list as unknown as T;
+  }
+
+  if (query.includes('FROM scan_history')) {
+    let list = Array.from(mockStorage.scan_history.values());
+    if (query.includes('GROUP BY user_id')) {
+      const counts: Record<string, number> = {};
+      list.forEach((item: any) => {
+        const uid = item.user_id || 'unknown';
+        counts[uid] = (counts[uid] || 0) + 1;
+      });
+      return Object.entries(counts).map(([user_id, count]) => ({ user_id, count })) as unknown as T;
+    }
+    if (query.includes('WHERE user_id = ?')) {
+      const uid = bindValues?.[0];
+      list = list.filter((item: any) => item.user_id === uid);
+    }
+    if (query.includes('ORDER BY created_at DESC')) {
+      list.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    }
+    return list as unknown as T;
+  }
+
+  if (query.includes('FROM till_payouts')) {
+    let list = Array.from(mockStorage.till_payouts?.values() || []);
+    if (query.includes('GROUP BY user_id')) {
+      const grouped: Record<string, { total: number; count: number }> = {};
+      list.forEach((item: any) => {
+        const uid = item.user_id || 'unknown';
+        if (!grouped[uid]) grouped[uid] = { total: 0, count: 0 };
+        grouped[uid].total += (Number(item.amount ?? item.amount_mt) || 0);
+        grouped[uid].count += 1;
+      });
+      return Object.entries(grouped).map(([user_id, g]) => ({ user_id, total: g.total, count: g.count })) as unknown as T;
+    }
+    if (query.includes('WHERE user_id = ?')) {
+      const uid = bindValues?.[0];
+      list = list.filter((item: any) => item.user_id === uid);
+    }
+    if (query.includes('ORDER BY created_at DESC')) {
+      list.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    }
+    return list as unknown as T;
   }
 
   if (query.includes('FROM shift_reports')) {
-    return Array.from(mockStorage.shift_reports.values()) as unknown as T;
+    let list = Array.from(mockStorage.shift_reports.values());
+    if (query.includes('ORDER BY') || query.includes('closed_at') || query.includes('opened_at')) {
+      list.sort((a: any, b: any) => new Date(b.opened_at || b.created_at || 0).getTime() - new Date(a.opened_at || a.created_at || 0).getTime());
+    }
+    return list as unknown as T;
   }
 
   if (query.includes('FROM notifications')) {
@@ -282,6 +331,44 @@ export const selectMockQuery = async <T>(query: string, bindValues?: any[]): Pro
 
   if (query.includes('FROM subscription_payments')) {
     let list = Array.from(mockStorage.subscription_payments?.values() || []);
+    return list as unknown as T;
+  }
+
+  if (query.includes('FROM ai_voice_audit_logs')) {
+    let list = Array.from(mockStorage.ai_voice_audit_logs?.values() || []);
+    if (query.includes('sync_status = 0')) {
+      list = list.filter(item => item.sync_status === 0);
+    }
+    if (query.includes('ORDER BY created_at DESC')) {
+      list.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    }
+    if (query.includes('LIMIT')) {
+      const match = query.match(/LIMIT\s+(\d+)/i);
+      const limit = match ? parseInt(match[1], 10) : 50;
+      list = list.slice(0, limit);
+    }
+    return list as unknown as T;
+  }
+
+  if (query.includes('FROM ai_command_logs')) {
+    let list = Array.from(mockStorage.ai_command_logs?.values() || []);
+    if (query.includes('sync_status = 0')) {
+      list = list.filter(item => item.sync_status === 0);
+    }
+    if (query.includes("device_origin = 'desktop_pos'") || query.includes('device_origin = "desktop_pos"')) {
+      list = list.filter(item => item.device_origin === 'desktop_pos' || !item.device_origin);
+    }
+    if (query.includes("device_origin = 'companion_app'") || query.includes('device_origin = "companion_app"')) {
+      list = list.filter(item => item.device_origin === 'companion_app');
+    }
+    if (query.includes('ORDER BY created_at DESC') || query.includes('ORDER BY client_timestamp DESC')) {
+      list.sort((a: any, b: any) => new Date(b.created_at || b.client_timestamp || 0).getTime() - new Date(a.created_at || a.client_timestamp || 0).getTime());
+    }
+    if (query.includes('LIMIT')) {
+      const match = query.match(/LIMIT\s+(\d+)/i);
+      const limit = match ? parseInt(match[1], 10) : 50;
+      list = list.slice(0, limit);
+    }
     return list as unknown as T;
   }
 

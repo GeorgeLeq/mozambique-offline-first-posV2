@@ -19,7 +19,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { AmbientBackground } from './AmbientBackground';
 import { InternetStatusBadge } from './InternetStatusBadge';
 import { FullscreenButton } from './FullscreenButton';
-import { FeatureGate, SubscriptionBadge, useSubscription } from '../subscription';
+import { FeatureGate, useSubscription } from '../subscription';
 
 import { useAuth } from "../contexts/AuthContext";
 import { useI18n } from '../i18n';
@@ -209,7 +209,6 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
           </button>
 
           <NotificationMenu onNavigate={(tab) => setActiveTab(tab as any)} />
-          <SubscriptionBadge />
           <ThemeToggle />
         </div>
 
@@ -317,30 +316,6 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
 
         {/* Sidebar Footer Operations */}
         <div className="p-4 border-t border-slate-100 dark:border-zinc-850 space-y-2 shrink-0">
-          {/* Subscription / Plans Button */}
-          <button
-            onClick={openSubscriptionPage}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-extrabold text-[11px] uppercase tracking-wider cursor-pointer border ${
-              isProActive
-                ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
-                : 'bg-indigo-50 dark:bg-zinc-900 border-indigo-200/60 dark:border-zinc-800 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-zinc-800'
-            } ${isCollapsed ? 'justify-center' : ''}`}
-            title={isCollapsed ? 'Minha Subscrição & Módulos' : undefined}
-          >
-            <Crown size={16} className={`shrink-0 ${isProActive ? 'text-amber-500' : 'text-indigo-500'}`} />
-            {!isCollapsed && (
-              <div className="flex-1 flex items-center justify-between min-w-0">
-                <span className="truncate">Subscrição</span>
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                  isProActive 
-                    ? 'bg-amber-500 text-white' 
-                    : 'bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
-                }`}>
-                  {isProActive ? 'PRO' : 'GRÁTIS'}
-                </span>
-              </div>
-            )}
-          </button>
 
           {/* Quick Focus Mode Toggler */}
           <button

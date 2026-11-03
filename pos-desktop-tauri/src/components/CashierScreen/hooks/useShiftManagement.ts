@@ -115,8 +115,8 @@ export function useShiftManagement(
         let tillPayoutsTotal = 0;
         let tillPayoutsCount = 0;
         try {
-          const payouts: any[] = await db.select(`SELECT amount FROM till_payouts WHERE ${dateCondition}`);
-          tillPayoutsTotal = payouts.reduce((sum, p) => sum + p.amount, 0);
+          const payouts: any[] = await db.select(`SELECT * FROM till_payouts WHERE ${dateCondition}`);
+          tillPayoutsTotal = payouts.reduce((sum, p) => sum + (p.amount_mt ?? p.amount ?? 0), 0);
           tillPayoutsCount = payouts.length;
         } catch (e) {
           console.warn('Failed to load till payouts', e);

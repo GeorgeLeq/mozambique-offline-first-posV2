@@ -72,14 +72,14 @@ export async function syncProductsToCloud(): Promise<boolean> {
 
     if (error) throw error;
 
-    // Atomic field-matching updates: only set sync_status = 1 if the record hasn't been locally modified during the network request
+    // Mark successfully uploaded products as synced in SQLite
     for (const product of unsyncedProducts) {
       await db.execute(
-        'UPDATE products SET sync_status = 1 WHERE id = ? AND sync_status = 0 AND stock_quantity = ? AND price_mt = ? AND cost_price_mt = ?',
-        [product.id, product.stock_quantity, product.price_mt, product.cost_price_mt]
+        'UPDATE products SET sync_status = 1 WHERE id = ?',
+        [product.id]
       );
     }
-    console.log(`Successfully pushed batch of ${unsyncedProducts.length} products to Supabase (verified atomically).`);
+    console.log(`Successfully pushed batch of ${unsyncedProducts.length} products to Supabase.`);
 
     // Check if more remain
     const remaining = await db.select('SELECT id FROM products WHERE sync_status = 0 LIMIT 1') as any[];

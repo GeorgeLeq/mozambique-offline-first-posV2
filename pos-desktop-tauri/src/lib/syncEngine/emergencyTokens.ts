@@ -86,15 +86,27 @@ export async function syncEmergencyTokensFromCloud(): Promise<boolean> {
     let data: any[] | null = tRes.data;
     let error = tRes.error;
 
-    if (error && (error.code === '42703' || error.message?.includes('token') || error.message?.includes('used_by') || error.message?.includes('cashier_id'))) {
-      // Fallback: Supabase emergency_tokens does not have token or used_by columns yet
-      const fallback = await supabase
+    if (error && (error.code === '42703' || error.message?.includes('token') || error.message?.includes('used_by') || error.message?.includes('cashier_id') || error.message?.includes('expires_at'))) {
+      // Fallback 1: Try without token / used_by / cashier_id
+      let fallback: any = await supabase
         .from('emergency_tokens')
         .select('id, code, created_at, expires_at, used_at')
         .eq('shop_id', shopId)
         .gt('created_at', lastPull)
         .order('created_at', { ascending: true })
         .limit(100);
+
+      if (fallback.error && (fallback.error.code === '42703' || fallback.error.message?.includes('expires_at'))) {
+        // Fallback 2: Supabase also does not have expires_at column yet
+        fallback = await supabase
+          .from('emergency_tokens')
+          .select('id, code, created_at, used_at')
+          .eq('shop_id', shopId)
+          .gt('created_at', lastPull)
+          .order('created_at', { ascending: true })
+          .limit(100);
+      }
+
       data = fallback.data as any[];
       error = fallback.error;
     }

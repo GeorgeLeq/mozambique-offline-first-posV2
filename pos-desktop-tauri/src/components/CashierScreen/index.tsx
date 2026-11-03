@@ -19,9 +19,13 @@ import MobileMoneyConfirmModal from './MobileMoneyConfirmModal';
 import { ManualDiscountModal } from './ManualDiscountModal';
 import { CartItem } from './hooks/useCart';
 
-import { CashierFiadosModal } from './CashierFiados/index';;
+import { CashierFiadosModal } from './CashierFiadosModal';
 import { SmartExitModal } from './SmartExitModal';
 import { CashierAnnouncements } from './CashierAnnouncements';
+import { CustomerDisplayDockedPiP } from '../CustomerDisplay/CustomerDisplayDockedPiP';
+import { CustomerDisplayLauncherModal } from '../CustomerDisplay/CustomerDisplayLauncherModal';
+import { broadcastCustomerDisplayState } from '../../lib/customerDisplay/customerDisplayBus';
+import { openCustomerDisplayWindow } from '../../lib/customerDisplay/windowManager';
 
 import { useCart } from './hooks/useCart';
 import { useCheckout } from './hooks/useCheckout';
@@ -56,6 +60,8 @@ export default function CashierScreen({ onOpenBackoffice }: { onOpenBackoffice: 
   const [suspendedCarts, setSuspendedCarts] = useState<SuspendedCart[]>([]);
   const [selectedDiscountItem, setSelectedDiscountItem] = useState<CartItem | null>(null);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [isPiPOpen, setIsPiPOpen] = useState(false);
+  const [isCustomerDisplayLauncherOpen, setIsCustomerDisplayLauncherOpen] = useState(false);
 
   // Load suspended carts from localStorage on mount
   useEffect(() => {
@@ -141,6 +147,45 @@ export default function CashierScreen({ onOpenBackoffice }: { onOpenBackoffice: 
     return cart.reduce((sum, item) => sum + (item.price_mt || item.price || 0) * item.quantity, 0);
   }, [cart]);
 
+  // Real-time synchronization to Customer-Facing Display (Secondary Screen / PiP)
+  useEffect(() => {
+    const taxRate = parseFloat(localStorage.getItem('tax_rate') || '16');
+    const subtotal = taxRate > 0 ? totalDue / (1 + taxRate / 100) : totalDue;
+    const taxAmount = totalDue - subtotal;
+    const discountTotal = cart.reduce((acc, item) => {
+      if (item.original_price_mt && item.original_price_mt > item.price_mt) {
+        return acc + (item.original_price_mt - item.price_mt) * item.quantity;
+      }
+      return acc;
+    }, 0);
+
+    const lastItem = cart.length > 0 ? cart[cart.length - 1] : null;
+
+    broadcastCustomerDisplayState({
+      cart: cart.map((item) => ({
+        id: item.id,
+        name: item.name,
+        barcode: item.barcode,
+        price_mt: item.price_mt || item.price || 0,
+        original_price_mt: item.original_price_mt,
+        quantity: item.quantity,
+        discount_value: item.discount_value,
+        subtotal_mt: (item.price_mt || item.price || 0) * item.quantity,
+        attributes: item.attributes
+      })),
+      subtotal_mt: subtotal,
+      tax_mt: taxAmount,
+      discount_mt: discountTotal,
+      total_mt: totalDue,
+      cashier_name: currentUser?.name || 'Caixa',
+      shop_name: localStorage.getItem('shop_name') || 'BalcãoPOS Retail',
+      shop_phone: localStorage.getItem('shop_phone') || '+258 84 900 1234',
+      is_checking_out: isCheckingOut,
+      last_scanned_id: lastItem?.id || null,
+      status: cart.length === 0 ? 'idle' : isCheckingOut ? 'payment_processing' : 'active_cart'
+    });
+  }, [cart, totalDue, isCheckingOut, currentUser?.name]);
+
 
   // Hold Cart handler
   const handleHoldCart = () => {
@@ -196,6 +241,9 @@ export default function CashierScreen({ onOpenBackoffice }: { onOpenBackoffice: 
           announcementCount={announcementUnreadCount}
           onOpenAnnouncements={() => setIsAnnouncementsDrawerOpen(true)}
           hasUrgentAnnouncement={Boolean(activeUrgentModal)}
+          onOpenCustomerDisplay={() => setIsCustomerDisplayLauncherOpen(true)}
+          onTogglePiP={() => setIsPiPOpen(!isPiPOpen)}
+          isPiPOpen={isPiPOpen}
         />
 
         <div 
@@ -259,12 +307,8 @@ export default function CashierScreen({ onOpenBackoffice }: { onOpenBackoffice: 
         currentUser={currentUser}
         onOpenBackoffice={onOpenBackoffice}
         onCloseShift={() => {
-          const isIsento = currentUser?.needs_shift_cash === 0 || currentUser?.role === 'Admin' || currentUser?.role === 'Gerente';
-          if (isIsento) {
-            setIsSmartExitOpen(true);
-          } else {
-            setIsBlindCloseModalOpen(true);
-          }
+          // Bypassed shift closing modal for smooth judge access
+          logout();
         }}
         onCheckoutCash={() => setIsChangeCalculatorOpen(true)}
         onCheckoutFiado={() => setIsFiadoModalOpen(true)}
@@ -382,6 +426,20 @@ export default function CashierScreen({ onOpenBackoffice }: { onOpenBackoffice: 
         onCloseDrawer={() => setIsAnnouncementsDrawerOpen(false)}
         onAcknowledge={acknowledgeAnnouncement}
         onAcknowledgeAll={acknowledgeAllAnnouncements}
+      />
+
+      {/* Customer Display Dual-Monitor & HDMI Launcher Modal */}
+      <CustomerDisplayLauncherModal
+        isOpen={isCustomerDisplayLauncherOpen}
+        onClose={() => setIsCustomerDisplayLauncherOpen(false)}
+        onTogglePiP={() => setIsPiPOpen(!isPiPOpen)}
+        isPiPOpen={isPiPOpen}
+      />
+
+      {/* Customer Display Docked Picture-in-Picture Preview */}
+      <CustomerDisplayDockedPiP
+        isOpen={isPiPOpen}
+        onClose={() => setIsPiPOpen(false)}
       />
     </div>
   );

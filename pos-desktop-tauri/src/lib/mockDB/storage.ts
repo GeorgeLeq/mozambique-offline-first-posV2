@@ -44,6 +44,9 @@ export const mockStorage: Record<string, Map<string, any>> = {
   feature_entitlements: loadMockStorage('feature_entitlements'),
   subscription_payments: loadMockStorage('subscription_payments'),
   subscription_plans: loadMockStorage('subscription_plans'),
+  ai_voice_audit_logs: loadMockStorage('ai_voice_audit_logs'),
+  ai_command_logs: loadMockStorage('ai_command_logs'),
+  till_payouts: loadMockStorage('till_payouts'),
 };
 
 export const resetMockStorage = () => {

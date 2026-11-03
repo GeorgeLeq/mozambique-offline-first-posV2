@@ -12,7 +12,7 @@ export async function initializeSchema(dbInstance: any): Promise<void> {
   try {
     const versionRes = await dbInstance.select('PRAGMA user_version;');
     const currentVersion = versionRes?.[0]?.user_version ?? versionRes?.[0]?.['user_version'] ?? 0;
-    if (currentVersion >= 22) {
+    if (currentVersion >= 23) {
       return;
     }
   } catch {}
@@ -295,6 +295,44 @@ export async function initializeSchema(dbInstance: any): Promise<void> {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       sync_status INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS ai_voice_audit_logs (
+      id TEXT PRIMARY KEY,
+      shop_id TEXT,
+      shift_id TEXT,
+      cashier_id TEXT,
+      cashier_name TEXT NOT NULL DEFAULT 'Caixa',
+      feature_context TEXT NOT NULL DEFAULT 'generic',
+      transcribed_text TEXT NOT NULL,
+      parsed_entities TEXT,
+      audio_duration_seconds REAL DEFAULT 0,
+      confidence_score REAL DEFAULT 0.95,
+      encrypted_payload TEXT,
+      is_mock INTEGER DEFAULT 0,
+      is_offline INTEGER DEFAULT 0,
+      sync_status INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_command_logs (
+      id TEXT PRIMARY KEY,
+      shop_id TEXT,
+      user_id TEXT,
+      user_name TEXT,
+      device_origin TEXT DEFAULT 'desktop_pos',
+      input_type TEXT NOT NULL,
+      raw_input TEXT NOT NULL,
+      transcription TEXT,
+      detected_intent TEXT,
+      tool_called TEXT,
+      tool_arguments TEXT,
+      tool_result TEXT,
+      execution_status TEXT NOT NULL DEFAULT 'success',
+      client_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      synced_at DATETIME,
+      sync_status INTEGER DEFAULT 0
+    );
   `);
 
   try {
@@ -520,8 +558,16 @@ export async function initializeSchema(dbInstance: any): Promise<void> {
     await dbInstance.execute("CREATE INDEX IF NOT EXISTS idx_client_debts_client ON client_debts(client_id);");
   } catch (e) {}
 
-  // Stamp PRAGMA user_version = 22 so future boots skip all checks instantly
+  // v23: AI Command Logs & Sentinel forensic indexes
   try {
-    await dbInstance.execute("PRAGMA user_version = 22;");
+    await dbInstance.execute("CREATE INDEX IF NOT EXISTS idx_ai_command_logs_shop_created ON ai_command_logs(shop_id, created_at DESC);");
+    await dbInstance.execute("CREATE INDEX IF NOT EXISTS idx_ai_command_logs_tool ON ai_command_logs(tool_called);");
+    await dbInstance.execute("CREATE INDEX IF NOT EXISTS idx_ai_command_logs_sync ON ai_command_logs(sync_status);");
+    await dbInstance.execute("CREATE INDEX IF NOT EXISTS idx_ai_command_logs_device ON ai_command_logs(device_origin);");
+  } catch (e) {}
+
+  // Stamp PRAGMA user_version = 23 so future boots skip all checks instantly
+  try {
+    await dbInstance.execute("PRAGMA user_version = 23;");
   } catch (e) {}
 }

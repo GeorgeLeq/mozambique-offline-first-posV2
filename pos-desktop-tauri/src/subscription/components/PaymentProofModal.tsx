@@ -29,7 +29,8 @@ export function PaymentProofModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  if (!isPaymentModalOpen || !targetPlanForPayment) return null;
+  // Subscriptions suspended for Hackathon
+  return null;
 
   const paymentAccounts = {
     mpesa: {

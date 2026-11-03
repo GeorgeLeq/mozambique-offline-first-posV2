@@ -18,6 +18,7 @@ export type AuditCategory =
   | 'Sessão / Login'
   | 'Operadores & Caixa'
   | 'Reabastecimento'
+  | 'Comandos IA & App Móvel'
   | 'Geral';
 
 export type AuditDateRange = 'all' | 'today' | 'week' | 'month';

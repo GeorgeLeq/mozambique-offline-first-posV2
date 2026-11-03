@@ -422,6 +422,11 @@ export async function checkFiadosLimit(newCustomerName: string): Promise<{ allow
       }
     }
 
+    // Ensure hackathon quota is at least 500
+    if (limit !== -1 && limit < 500) {
+      limit = 500;
+    }
+
     // Unlimited
     if (limit === -1) {
       return { allowed: true, limit, current: 0 };
@@ -457,7 +462,7 @@ export async function checkFiadosLimit(newCustomerName: string): Promise<{ allow
     };
   } catch (err) {
     console.error('[debtService] checkFiadosLimit error:', err);
-    return { allowed: true, limit: 20, current: 0 }; // fail-safe open
+    return { allowed: true, limit: 500, current: 0 }; // fail-safe open
   }
 }
 
@@ -471,6 +476,6 @@ export async function getFiadosUsage(): Promise<{ current: number, limit: number
       isUnlimited: res.limit === -1
     };
   } catch(e) {
-    return { current: 0, limit: 20, isAtLimit: false, isUnlimited: false };
+    return { current: 0, limit: 500, isAtLimit: false, isUnlimited: false };
   }
 }

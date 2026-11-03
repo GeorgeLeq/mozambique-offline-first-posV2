@@ -6,7 +6,7 @@ import { RestockHistory } from './RestockHistory';
 import { ExpectedDeliveries } from './ExpectedDeliveries';
 import { useAuth } from '../../contexts/AuthContext';
 import { AmbientBackground } from '../AmbientBackground';
-import { useI18n, getLanguage, LanguageCode } from '../../lib/i18n';
+import { useI18n, getLanguage, LanguageCode } from '../../i18n';
 import { useProductManagerAuth } from '../ProductManager/hooks/useProductManagerAuth';
 import { AdminPinModal } from '../ProductManager/AdminPinModal';
 

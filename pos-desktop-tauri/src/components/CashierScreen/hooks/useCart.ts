@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { logAudit } from '../../../lib/audit';
 import { getDB } from '../../../lib/db';
@@ -24,6 +24,50 @@ export interface CartItem {
 
 export function useCart(currentUser: any) {
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Listen for agentic AI cart additions from Meta Llama
+  useEffect(() => {
+    const handleAddFromAi = async (e: Event) => {
+      const customEvent = e as CustomEvent<{ items: Array<{ product_name: string; quantity: number; unit_price_mt?: number }> }>;
+      if (!customEvent.detail || !Array.isArray(customEvent.detail.items)) return;
+
+      try {
+        const db = await getDB();
+        for (const item of customEvent.detail.items) {
+          const rows: any[] = await db.select(
+            'SELECT id, name, price_mt, barcode, stock_quantity, promo_active, promo_price_mt FROM products WHERE LOWER(name) LIKE ? AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1',
+            [`%${item.product_name.toLowerCase().trim()}%`]
+          );
+          const product = rows && rows.length > 0 ? rows[0] : null;
+
+          const effectiveId = product?.id || crypto.randomUUID();
+          const effectiveName = product?.name || item.product_name;
+          const effectivePrice = item.unit_price_mt || product?.price_mt || 50;
+
+          setCart(prev => {
+            const existing = prev.find(i => i.id === effectiveId);
+            if (existing) {
+              return prev.map(i => i.id === effectiveId ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i);
+            }
+            return [...prev, {
+              id: effectiveId,
+              name: effectiveName,
+              barcode: product?.barcode || '',
+              price_mt: effectivePrice,
+              original_price_mt: effectivePrice,
+              quantity: item.quantity || 1,
+              stock_quantity: product?.stock_quantity ?? 999
+            }];
+          });
+        }
+      } catch (err) {
+        console.warn('[useCart] Failed to resolve product from AI add_to_cart:', err);
+      }
+    };
+
+    window.addEventListener('sycomm:add-to-cart', handleAddFromAi);
+    return () => window.removeEventListener('sycomm:add-to-cart', handleAddFromAi);
+  }, []);
 
   const updateQuantity = (id: string, newQuantity: number) => {
     if (newQuantity === 0) {

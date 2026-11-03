@@ -68,6 +68,12 @@ const getCategoryBadgeStyle = (category: AuditCategory): { bg: string; text: str
         text: 'text-cyan-700 dark:text-cyan-400',
         border: 'border-cyan-200/60 dark:border-cyan-900/30'
       };
+    case 'Comandos IA & App Móvel':
+      return {
+        bg: 'bg-indigo-50 dark:bg-indigo-950/40',
+        text: 'text-indigo-700 dark:text-indigo-400',
+        border: 'border-indigo-200/60 dark:border-indigo-900/40'
+      };
     default:
       return {
         bg: 'bg-slate-50 dark:bg-zinc-800/40',
@@ -117,6 +123,7 @@ export function AuditLogsTable({
 
   const categoryLabelMap: Record<AuditCategory, string> = {
     'Todos': t.catAll || 'Todos',
+    'Comandos IA & App Móvel': 'IA & App Móvel',
     'Produtos': t.catProducts || 'Produtos',
     'Vendas': t.catSales || 'Vendas',
     'Sessão / Login': t.catSessionLogin || 'Sessão / Login',

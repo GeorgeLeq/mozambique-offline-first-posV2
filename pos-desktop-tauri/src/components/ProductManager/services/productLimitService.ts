@@ -153,10 +153,15 @@ export async function checkProductCatalogLimit(additionalCount: number = 1): Pro
       );
 
       if (freePlan && freePlan.max_products !== undefined && freePlan.max_products !== null) {
-        limit = Number(freePlan.max_products);
+        limit = Math.max(500, Number(freePlan.max_products));
       } else {
-        limit = 50;
+        limit = 500;
       }
+    }
+
+    // Ensure hackathon quota is at least 500
+    if (limit !== -1 && limit < 500) {
+      limit = 500;
     }
 
     // Unlimited quota
@@ -183,8 +188,8 @@ export async function checkProductCatalogLimit(additionalCount: number = 1): Pro
     };
   } catch (err) {
     console.error('[productLimitService] checkProductCatalogLimit error:', err);
-    // Fail-safe open with reasonable default
-    return { allowed: true, limit: 50, current: 0 };
+    // Fail-safe open with 500 capacity
+    return { allowed: true, limit: 500, current: 0 };
   }
 }
 
@@ -208,7 +213,7 @@ export async function getProductCatalogUsage(): Promise<ProductUsageSummary> {
   } catch (e) {
     return {
       current: 0,
-      limit: 50,
+      limit: 500,
       isAtLimit: false,
       isUnlimited: false,
       percentage: 0

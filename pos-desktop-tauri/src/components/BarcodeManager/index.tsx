@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getDB } from '../../lib/db';
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeString, sanitizeNumeric } from '../../lib/security/sanitizer';
 import { BarcodeRecord } from './types';
@@ -73,19 +74,45 @@ export default function BarcodeManager({ onBack }: { onBack: () => void }) {
         setIsLoading(true);
       }
       const db = await getDB();
+      const isTauri = typeof window !== 'undefined' && 
+        ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_METADATA__' in window);
       
-      const [allBarcodes, allProducts, usageSummary] = await Promise.all([
+      let [allBarcodes, allProducts, usageSummary] = await Promise.all([
         db.select('SELECT * FROM barcodes ORDER BY created_at DESC') as Promise<BarcodeRecord[]>,
         db.select('SELECT id, name, price_mt, barcode FROM products ORDER BY name ASC') as Promise<any[]>,
         getBarcodeUsageSummary()
       ]);
 
-      setBarcodes(allBarcodes);
-      setProducts(allProducts);
-      setBarcodeUsage(usageSummary);
+      // If in browser mode and local storage is empty, fallback to live Supabase query
+      if (!isTauri && (!allBarcodes || allBarcodes.length === 0)) {
+        try {
+          const shopIdSetting = await db.select("SELECT value FROM settings WHERE key = 'shop_id'").catch(() => []);
+          const shopId = shopIdSetting?.[0]?.value;
+          if (shopId) {
+            const { data: cloudBarcodes } = await supabase.from('barcodes').select('*').eq('shop_id', shopId).order('created_at', { ascending: false });
+            if (cloudBarcodes && cloudBarcodes.length > 0) {
+              allBarcodes = cloudBarcodes as any[];
+            }
+          }
+        } catch (_e) {}
+      }
 
-      // Approach A: Synchronize aggregate barcode count to Supabase shops table in background
-      syncBarcodeUsageToCloud().catch(err => console.warn('[BarcodeManager] Cloud usage sync:', err));
+      if (!isTauri && (!allProducts || allProducts.length === 0)) {
+        try {
+          const shopIdSetting = await db.select("SELECT value FROM settings WHERE key = 'shop_id'").catch(() => []);
+          const shopId = shopIdSetting?.[0]?.value;
+          if (shopId) {
+            const { data: cloudProds } = await supabase.from('products').select('*').eq('shop_id', shopId).order('name', { ascending: true });
+            if (cloudProds && cloudProds.length > 0) {
+              allProducts = cloudProds as any[];
+            }
+          }
+        } catch (_e) {}
+      }
+
+      setBarcodes(allBarcodes || []);
+      setProducts(allProducts || []);
+      setBarcodeUsage(usageSummary);
     } catch (err) {
       console.error('Failed to load barcodes:', err);
       toast.error(t.errorLoadingBarcodes);

@@ -22,6 +22,7 @@ import FinancialCards from './FinancialCards';
 import OperationsAndHealth from './OperationsAndHealth';
 import StockAndMovers from './StockAndMovers';
 import DashboardGuideModal from './DashboardGuideModal';
+import { StoreSentinelBar } from './StoreSentinelBar';
 import { useMiniDashboard } from './hooks/useMiniDashboard';
 
 type DashboardTab = 'financials' | 'operations' | 'stock';
@@ -177,6 +178,9 @@ export default function MiniDashboard({ onNavigate }: { onNavigate: (tab: string
           )}
         </div>
       </div>
+
+      {/* Store Sentinel AI Assistant (Powered by Muse Spark & Muse Voice Transcribe) */}
+      <StoreSentinelBar onNavigate={onNavigate} />
 
       {/* Zero-Scroll Tap Navigation Strip (Placed directly above the cards) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">

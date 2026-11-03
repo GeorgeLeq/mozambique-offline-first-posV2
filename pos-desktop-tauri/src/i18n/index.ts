@@ -5,9 +5,11 @@ import fr from './locales/fr';
 import sw from './locales/sw';
 import { deliveriesTranslations } from './deliveries';
 import { commonTranslations } from './legacyCommon';
+import { customerDisplayTranslations } from './customerDisplay';
+import { museBarTranslations } from './museBar';
 
 export type { LanguageCode, LocaleResource };
-export { SUPPORTED_LANGUAGES, deliveriesTranslations };
+export { SUPPORTED_LANGUAGES, deliveriesTranslations, customerDisplayTranslations, museBarTranslations };
 
 export const locales: Record<LanguageCode, LocaleResource> = {
   pt,
@@ -26,7 +28,7 @@ export function getLanguage(): LanguageCode {
       return saved as LanguageCode;
     }
   } catch {}
-  return 'pt';
+  return 'en';
 }
 
 /**
@@ -48,6 +50,8 @@ export const translations: Record<LanguageCode, Record<string, any>> = {
   pt: {
     ...commonTranslations.pt,
     ...deliveriesTranslations.pt,
+    ...customerDisplayTranslations.pt,
+    ...museBarTranslations.pt,
     ...pt.deliveries,
     ...pt.barcodes,
     ...pt.common,
@@ -89,6 +93,8 @@ export const translations: Record<LanguageCode, Record<string, any>> = {
   en: {
     ...commonTranslations.en,
     ...deliveriesTranslations.en,
+    ...customerDisplayTranslations.en,
+    ...museBarTranslations.en,
     ...en.deliveries,
     ...en.barcodes,
     ...en.common,
@@ -129,6 +135,8 @@ export const translations: Record<LanguageCode, Record<string, any>> = {
   fr: {
     ...commonTranslations.fr,
     ...deliveriesTranslations.fr,
+    ...customerDisplayTranslations.fr,
+    ...museBarTranslations.fr,
     ...fr.deliveries,
     ...fr.barcodes,
     ...fr.common,
@@ -169,6 +177,8 @@ export const translations: Record<LanguageCode, Record<string, any>> = {
   sw: {
     ...commonTranslations.sw,
     ...deliveriesTranslations.sw,
+    ...customerDisplayTranslations.sw,
+    ...museBarTranslations.sw,
     ...sw.deliveries,
     ...sw.barcodes,
     ...sw.common,
@@ -234,7 +244,7 @@ export function useCurrentLanguage(lang?: LanguageCode): LanguageCode {
  */
 export function useI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return translations[currentLang] || translations.pt;
+  return translations[currentLang] || translations.en;
 }
 
 /**
@@ -242,7 +252,7 @@ export function useI18n(lang?: LanguageCode) {
  */
 export function useProductsI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).products;
+  return (locales[currentLang] || locales.en).products;
 }
 
 /**
@@ -250,7 +260,7 @@ export function useProductsI18n(lang?: LanguageCode) {
  */
 export function useCommonI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).common;
+  return (locales[currentLang] || locales.en).common;
 }
 
 /**
@@ -258,7 +268,7 @@ export function useCommonI18n(lang?: LanguageCode) {
  */
 export function usePosI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).pos;
+  return (locales[currentLang] || locales.en).pos;
 }
 
 /**
@@ -274,7 +284,7 @@ export function useLocale(): [LanguageCode, (lang: LanguageCode) => void] {
  */
 export function useDeliveriesI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).deliveries;
+  return (locales[currentLang] || locales.en).deliveries;
 }
 
 /**
@@ -282,7 +292,7 @@ export function useDeliveriesI18n(lang?: LanguageCode) {
  */
 export function useBarcodesI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).barcodes;
+  return (locales[currentLang] || locales.en).barcodes;
 }
 
 /**
@@ -290,7 +300,7 @@ export function useBarcodesI18n(lang?: LanguageCode) {
  */
 export function useCustomersI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).customers;
+  return (locales[currentLang] || locales.en).customers;
 }
 
 /**
@@ -298,7 +308,7 @@ export function useCustomersI18n(lang?: LanguageCode) {
  */
 export function useEmployeesI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).employees;
+  return (locales[currentLang] || locales.en).employees;
 }
 
 /**
@@ -306,7 +316,7 @@ export function useEmployeesI18n(lang?: LanguageCode) {
  */
 export function useCashierControlI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).cashierControl;
+  return (locales[currentLang] || locales.en).cashierControl;
 }
 
 /**
@@ -314,7 +324,7 @@ export function useCashierControlI18n(lang?: LanguageCode) {
  */
 export function useShiftReportsI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).shiftReports;
+  return (locales[currentLang] || locales.en).shiftReports;
 }
 
 /**
@@ -322,7 +332,7 @@ export function useShiftReportsI18n(lang?: LanguageCode) {
  */
 export function useScanHistoryI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).scanHistory;
+  return (locales[currentLang] || locales.en).scanHistory;
 }
 
 /**
@@ -330,7 +340,7 @@ export function useScanHistoryI18n(lang?: LanguageCode) {
  */
 export function useAuditsI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).audits;
+  return (locales[currentLang] || locales.en).audits;
 }
 
 export function useAuditLogsI18n(lang?: LanguageCode) {
@@ -342,6 +352,6 @@ export function useAuditLogsI18n(lang?: LanguageCode) {
  */
 export function useSettingsI18n(lang?: LanguageCode) {
   const currentLang = useCurrentLanguage(lang);
-  return (locales[currentLang] || locales.pt).settings;
+  return (locales[currentLang] || locales.en).settings;
 }
 

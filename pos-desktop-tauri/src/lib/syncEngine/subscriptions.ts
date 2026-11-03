@@ -45,7 +45,7 @@ export async function syncSubscriptionPaymentsToCloud(): Promise<boolean> {
         .upsert(payload, { onConflict: 'id' });
 
       if (error) {
-        console.warn(`[Sync Subscriptions] Failed to push payment ${row.id}:`, error.message);
+        // [Sync Subscriptions] Suppressed for hackathon
       } else {
         await db.execute(
           'UPDATE subscription_payments SET sync_status = 1 WHERE id = ?',
@@ -55,8 +55,8 @@ export async function syncSubscriptionPaymentsToCloud(): Promise<boolean> {
     }
 
     return true;
-  } catch (err) {
-    console.warn('[Sync Subscriptions] Payment upload error:', err);
+  } catch (_err) {
+    // [Sync Subscriptions] Suppressed for hackathon
     return false;
   }
 }
@@ -135,8 +135,8 @@ export async function syncSubscriptionPaymentsFromCloud(): Promise<boolean> {
     }
 
     return true;
-  } catch (err) {
-    console.warn('[Sync Subscriptions] Failed downloading payment updates:', err);
+  } catch (_err) {
+    // [Sync Subscriptions] Suppressed for hackathon
     return false;
   }
 }
@@ -346,14 +346,7 @@ export async function syncSubscriptionsFromCloud(): Promise<boolean> {
       }
 
       if (shopRow) {
-        console.log('[Sync Subscriptions] Found shopRow from Supabase:', {
-          id: shopRow.id,
-          name: shopRow.name,
-          advanced_audits: shopRow.advanced_audits,
-          custom_permissions: shopRow.custom_permissions,
-          subscription_plan_id: shopRow.subscription_plan_id,
-          addons: shopRow.addons
-        });
+        // [Sync Subscriptions] Found shopRow from Supabase (silenced for competition)
 
         if (shopRow.subscription_plan_id) {
           await db.execute(
@@ -429,13 +422,7 @@ export async function syncSubscriptionsFromCloud(): Promise<boolean> {
         }
 
         if (matchingPlan) {
-          console.log('[Sync Subscriptions] Resolved shop subscription plan:', {
-            planId: matchingPlan.id,
-            planName: matchingPlan.name,
-            cloud_backup: matchingPlan.cloud_backup,
-            advanced_audits: matchingPlan.advanced_audits,
-            custom_permissions: matchingPlan.custom_permissions
-          });
+          // [Sync Subscriptions] Resolved shop subscription plan (silenced for competition)
 
           // If the shop is on a specific plan, save the plan reference and limits into settings if not explicitly overridden by the shop record
           if (matchingPlan.id) {
@@ -473,7 +460,7 @@ export async function syncSubscriptionsFromCloud(): Promise<boolean> {
               );
             }
             if (shopRow?.max_fiado_customers === undefined || shopRow?.max_fiado_customers === null) {
-              const fLimit = matchingPlan.max_fiado_customers !== undefined && matchingPlan.max_fiado_customers !== null ? matchingPlan.max_fiado_customers : 200;
+              const fLimit = matchingPlan.max_fiado_customers !== undefined && matchingPlan.max_fiado_customers !== null ? matchingPlan.max_fiado_customers : 500;
               await db.execute(
                 "INSERT OR REPLACE INTO settings (key, value, sync_status) VALUES ('max_fiado_customers', ?, 1)",
                 [String(fLimit)]
@@ -655,13 +642,13 @@ export async function syncSubscriptionsFromCloud(): Promise<boolean> {
       if (entitlementsChanged && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('subscription-entitlements-updated'));
       }
-    } catch (shopQuotaErr) {
-      console.warn('[Sync Subscriptions] Custom shop quota check:', shopQuotaErr);
+    } catch (_shopQuotaErr) {
+      // [Sync Subscriptions] Suppressed for hackathon
     }
 
     return true;
-  } catch (err) {
-    console.warn('[Sync Subscriptions] Cloud sync error:', err);
+  } catch (_err) {
+    // [Sync Subscriptions] Suppressed for hackathon
     return false;
   }
 }

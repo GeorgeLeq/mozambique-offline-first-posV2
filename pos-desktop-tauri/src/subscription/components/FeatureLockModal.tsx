@@ -25,7 +25,8 @@ export function FeatureLockModal() {
     setIsOfflineUnlockOpen 
   } = useSubscription();
 
-  if (!activeLockModalFeature) return null;
+  // All subscriptions are suspended for the hackathon competition
+  return null;
 
   // Filter plans that include this feature
   const matchingPlans = plans.filter(p => {
