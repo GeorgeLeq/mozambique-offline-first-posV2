@@ -11,6 +11,7 @@ import { ExecutableAiAction, SentinelResponse } from '../../types';
 export interface ProductCrudOptions {
   query: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
   onChunk?: (chunk: string) => void;
 }
 
@@ -23,7 +24,7 @@ export function isProductCrudQuery(query: string): boolean {
 }
 
 export async function handleProductCrud(options: ProductCrudOptions): Promise<SentinelResponse> {
-  const { query, lang = 'en', onChunk } = options;
+  const { query, lang = 'en', pacing = 'balanced', onChunk } = options;
   const isPt = lang === 'pt' || /adicionar|produto|novo|preco|preço|remover/i.test(query);
 
   // Extract name & price via fallback heuristics if prompt contains direct values
@@ -120,20 +121,20 @@ ${cleanActionDesc}
 
 INSTRUÇÕES OBRIGATÓRIAS (ZERO PRESETS):
 Responda diretamente em texto natural com tom profissional de assistente de loja.
-1. Confirme em 1 frase inicial a ação preparada para o operador.
+1. Confirme com as suas próprias palavras a ação preparada para o operador.
 2. Destaque os detalhes principais em marcadores (•) (Produto, Preço em MT, Quantidade).
-3. REGRA CRÍTICA: NUNCA use chavetas {} ou nomes de variáveis.
-4. Formate a moeda em Meticais (MT).`
+3. REGRA CRÍTICA: NUNCA use chavetas {} nem escreva placeholders como [Insira ...] ou [Insert ...].
+4. Formate a moeda estritamente em Meticais (MT). NUNCA converta para dólares ($/USD) nem invente produtos adicionais.`
     : `You are Store Sentinel AI for SYCOMM POS retail shops in Mozambique.
 STAGED SQLITE ACTION DETAILS:
 ${cleanActionDesc}
 
 MANDATORY INSTRUCTIONS (ZERO PRESETS):
 Respond directly in natural text in a professional store assistant voice.
-1. Confirm the staged action in 1 clear opening sentence.
+1. Confirm the staged action naturally in your own words.
 2. Provide concise bullet points (•) highlighting the key details (Product, Price in MT, Stock units).
-3. CRITICAL RULE: NEVER output curly braces {} or variable tags. Write clean, natural prose.
-4. Always format currency in Mozambican Meticais (MT).`;
+3. CRITICAL RULE: NEVER output curly braces {} or bracket placeholders like [Insert Product Name] or [Insert Price]. Output the actual values directly.
+4. Currency is strictly Mozambican Meticais (MT). NEVER convert prices to USD ($) or mention dollars, and NEVER invent extra products.`;
 
   try {
     let streamedText = '';
@@ -141,6 +142,7 @@ Respond directly in natural text in a professional store assistant voice.
       prompt: query,
       systemPrompt: systemInstruction,
       temperature: 0.35,
+      pacing,
       onChunk: (chunk: string) => {
         streamedText += chunk;
         if (onChunk) {
@@ -149,9 +151,16 @@ Respond directly in natural text in a professional store assistant voice.
       }
     });
 
-    const cleanAnswer = (aiRes.text || '')
+    const rawAnswer = aiRes.text || '';
+    const cleanAnswer = rawAnswer
       .replace(/\{[a-zA-Z0-9_\[\]\s:"',-]+\}\s*/g, '')
       .replace(/\{\s*\}/g, '')
+      .replace(/\[\s*(?:Insert|Insira|Preencha|Digite)[^\]]*\]/gi, '')
+      .replace(/\[\s*\]/g, '')
+      .replace(/\s*\((?:approximately|aprox\.?|cerca de)?\s*\$[\d.,]+\s*(?:USD)?\)/gi, '')
+      .replace(/\b(?:USD|\$)\s*(\d+(?:[.,]\d+)?)/gi, '$1 MT')
+      .replace(/\$\s*\[/g, '[')
+      .replace(/\bSimbamente\b/gi, 'Certamente')
       .trim();
 
     return {

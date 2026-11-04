@@ -115,7 +115,7 @@ export class PosActionDispatcher {
       }
 
       await db.execute(
-        `INSERT INTO products (id, name, barcode, price, cost_price, stock_quantity, category, created_at, updated_at)
+        `INSERT INTO products (id, name, barcode, price_mt, cost_price_mt, stock_quantity, category, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, name, barcode, price, costPrice, stock, category, now, now]
       );
@@ -159,12 +159,12 @@ export class PosActionDispatcher {
       }
       const priceVal = input.price !== undefined ? input.price : input.price_mt;
       if (priceVal !== undefined) {
-        updates.push('price = ?');
+        updates.push('price_mt = ?');
         values.push(Math.max(0, Number(priceVal)));
       }
       const costVal = input.cost_price !== undefined ? input.cost_price : input.cost_price_mt;
       if (costVal !== undefined) {
-        updates.push('cost_price = ?');
+        updates.push('cost_price_mt = ?');
         values.push(Math.max(0, Number(costVal)));
       }
       const stockVal = input.stock_quantity !== undefined ? input.stock_quantity : (input.quantity ?? input.stock);
@@ -493,7 +493,7 @@ export class PosActionDispatcher {
       }
       const rows = (await db.select(query, params)) as any[];
       const topItems = (await db.select(
-        'SELECT name, stock_quantity, price FROM products ORDER BY stock_quantity DESC LIMIT 5'
+        'SELECT name, stock_quantity, price_mt AS price FROM products ORDER BY stock_quantity DESC LIMIT 5'
       )) as any[];
       return {
         success: true,
@@ -513,7 +513,7 @@ export class PosActionDispatcher {
     try {
       const db = await getDB();
       const rows = (await db.select(
-        'SELECT id, name, barcode, price, cost_price, stock_quantity, category FROM products WHERE name LIKE ? OR barcode = ? LIMIT 10',
+        'SELECT id, name, barcode, price_mt AS price, cost_price_mt AS cost_price, stock_quantity, category FROM products WHERE name LIKE ? OR barcode = ? LIMIT 10',
         [`%${searchTerm}%`, searchTerm]
       )) as any[];
       return { success: true, action: 'searchProducts', data: rows };
@@ -526,7 +526,7 @@ export class PosActionDispatcher {
     try {
       const db = await getDB();
       const rows = (await db.select(
-        'SELECT id, name, barcode, price, cost_price, stock_quantity, category FROM products WHERE barcode = ? LIMIT 1',
+        'SELECT id, name, barcode, price_mt AS price, cost_price_mt AS cost_price, stock_quantity, category FROM products WHERE barcode = ? LIMIT 1',
         [barcode]
       )) as any[];
       if (rows.length === 0) {

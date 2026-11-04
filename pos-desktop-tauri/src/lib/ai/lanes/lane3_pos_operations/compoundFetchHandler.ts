@@ -1,20 +1,23 @@
 /**
  * @file compoundFetchHandler.ts
  * @description Lane 3 Sequential Multi-Fetch Handler for Grounded Operational Reads.
- * Handles multi-intent read queries (e.g. stock + customers + deliveries) by sequentially
- * querying local SQLite, building compound JIT tool definitions, and providing grounded
+ * Handles multi-intent read queries (e.g. stock + customers + shift reports + scan history)
+ * by sequentially querying local SQLite, building compound JIT telemetry, and providing grounded
  * factual answers in Meticais (MT) with zero presets.
  */
 
 import { SentinelResponse } from '../../types';
 import { queryUnifiedAiEngine } from '../../unifiedAiClient';
 import { PosJitToolSelection } from './jitToolSelector';
-import { executeJitTool, formatStoreFactsHuman, sanitizeLlamaResponse } from './singleLaneHandler';
+import { executeJitTool } from './jitToolExecutor';
+import { formatStoreFactsHuman, sanitizeLlamaResponse } from './telemetryFormatter';
 
 export interface CompoundFetchOptions {
   query: string;
   operatorName?: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
+  signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
 }
 
@@ -28,11 +31,15 @@ export function detectFetchTools(query: string): string[] {
   const hasInventoryKey = /(stock|inventory|estoque|produto|product|catalog|catálogo|item|prateleira)/i.test(q);
   const hasCustomerKey = /(customer|cliente|fiado|debt|devedor|saldo|ledger|devedores)/i.test(q);
   const hasDeliveryKey = /(delivery|deliveries|entrega|entregas|fornecedor|supplier|encomenda|restock)/i.test(q);
-  const hasShiftKey = /(shift|turno|caixa|cashier|logged|login|operador|operator|logou)/i.test(q);
+  const hasShiftReportsKey = /(shift report|relatório de turno|relatorio de turno|quebra|shortage|stole|roubo|roubou|auditoria|audit|falta de caixa|discrepanc)/i.test(q);
+  const hasScanHistoryKey = /(scan history|histórico de leituras|historico de leituras|scanned|leituras|produtos lidos|barcode scans|código de barras)/i.test(q);
+  const hasShiftKey = /(shift|turno|caixa|cashier|logged|login|operador|operator|logou)/i.test(q) && !hasShiftReportsKey;
 
   if (hasInventoryKey) tools.push('fetch_inventory');
   if (hasCustomerKey) tools.push('fetch_customers');
   if (hasDeliveryKey) tools.push('fetch_deliveries');
+  if (hasShiftReportsKey) tools.push('fetch_shift_reports');
+  if (hasScanHistoryKey) tools.push('fetch_scan_history');
   if (hasShiftKey) tools.push('fetch_shifts');
 
   // If query asks for general overview or store status
@@ -59,6 +66,8 @@ export function isIncompleteCompoundResponse(answer: string, query: string): boo
     inventory: /(stock|inventory|estoque|produto|product|catalog|catálogo|item|prateleira)/i.test(q),
     customer: /(customer|cliente|fiado|debt|devedor|saldo|ledger|devedores)/i.test(q),
     delivery: /(delivery|deliveries|entrega|entregas|fornecedor|supplier|encomenda|restock)/i.test(q),
+    shift_reports: /(shift report|relatório de turno|quebra|shortage|stole|roubo|auditoria|falta de caixa)/i.test(q),
+    scan_history: /(scan history|histórico de leituras|scanned|leituras|produtos lidos)/i.test(q),
     shift: /(shift|turno|caixa|cashier|logged|login|operador|operator|logou)/i.test(q)
   };
 
@@ -70,14 +79,13 @@ export function isIncompleteCompoundResponse(answer: string, query: string): boo
     inventory: /(stock|inventory|estoque|product|produto|items|item|catalog|catálogo)/i.test(normalized),
     customer: /(customer|cliente|fiado|debt|devedor|saldo|ledger|customers|devedores)/i.test(normalized),
     delivery: /(delivery|deliveries|entrega|entregas|fornecedor|supplier|restock|encomenda)/i.test(normalized),
+    shift_reports: /(shift report|relatório|quebra|shortage|discrepancy|roubo|auditoria)/i.test(normalized),
+    scan_history: /(scan|leitura|código de barras|barcode)/i.test(normalized),
     shift: /(shift|turno|cashier|caixa|operator|operador|logged|login)/i.test(normalized)
   };
 
   const missing = requiredKeys.filter(key => !mentions[key as keyof typeof mentions]);
   if (missing.length > 0) return true;
-
-  const looksCutOff = /(Current Stock|Customer and Fiado Metrics|Pending Restocks|Register Shift):\s*$/.test(normalized) || /(?:Current Stock|Customer and Fiado Metrics|Pending Restocks|Register Shift):\s*$/.test(normalized);
-  if (looksCutOff) return true;
 
   return false;
 }
@@ -87,8 +95,8 @@ export function isIncompleteCompoundResponse(answer: string, query: string): boo
  * to Llama 3.2 1B, and returns grounded multi-bullet facts via live token streaming.
  */
 export async function handleCompoundFetchQuery(options: CompoundFetchOptions): Promise<SentinelResponse> {
-  const { query, operatorName = 'Admin', lang = 'en', onChunk } = options;
-  const isPt = lang === 'pt' || /estoque|produtos|turno|caixa|quantos|quem|fiado|logado|logou/i.test(query);
+  const { query, operatorName = 'Admin', lang = 'en', pacing = 'balanced', signal, onChunk } = options;
+  const isPt = lang === 'pt' || /estoque|produtos|turno|caixa|quantos|quem|fiado|logado|logou|relatório|quebra|roubou|falta|leitura/i.test(query);
 
   const toolNames = detectFetchTools(query);
   const combinedData: Record<string, any> = {};
@@ -115,26 +123,26 @@ export async function handleCompoundFetchQuery(options: CompoundFetchOptions): P
 DADOS REAIS E EXATOS DO BANCO DE DADOS SQLITE LOCAL DA LOJA:
 ${humanFacts}
 
-INSTRUÇÕES OBRIGATÓRIAS:
-Responda de forma natural e útil, cobrindo TODAS as áreas solicitadas.
-1. Comece com 1 frase curta e natural de introdução (ex: "Verifiquei os dados solicitados da loja e este é o panorama atual:").
-2. Apresente os fatos em marcadores (•) objetivos para cada área solicitada (Estoque, Clientes/Fiado, Entregas, Turno), baseados estritamente nos dados reais acima.
-3. REGRA CRÍTICA: NUNCA use chavetas {} ou nomes de variáveis como {totalProducts}, {sampleItems}, etc. Escreva apenas texto legível com números reais.
-4. NUNCA invente categorias de produtos fictícias nem nomes de clientes fictícios.
-5. Formate todos os valores monetários em Meticais (MT).
-6. ZERO presets: não use saudações genéricas nem diga "Como posso ajudar hoje?".`
+INSTRUÇÕES OBRIGATÓRIAS (ZERO PRESETS):
+Responda de forma natural, profissional e estritamente factual com as suas próprias palavras.
+1. Inicie naturalmente e cubra todas as áreas solicitadas diretamente.
+2. Apresente os fatos em marcadores (•) objetivos com números reais dos dados acima.
+3. Se relatórios de turno ou histórico de leituras foram consultados, informe os dados exatos (operador, valor de quebra em MT, produtos lidos).
+4. REGRA CRÍTICA: NUNCA use chavetas {} nem placeholders como [Insira ...]. Escreva apenas texto legível com números reais.
+5. NUNCA invente categorias de produtos fictícias, nem produtos fictícios (ex: Almond Butter), nem nomes de clientes fictícios.
+6. Formate todos os valores monetários estritamente em Meticais (MT). NUNCA mencione dólares ($/USD) nem faça conversões cambiais.`
     : `You are Store Sentinel AI for SYCOMM POS retail shops in Mozambique.
 REAL AND EXACT LIVE SQLITE DATABASE DATA FOR THIS STORE:
 ${humanFacts}
 
-MANDATORY INSTRUCTIONS:
-Respond in a natural, helpful retail-assistant voice covering ALL requested areas.
-1. Start with 1 brief natural sentence, for example: "I checked the requested store metrics and here is the live picture:".
-2. Provide concise bullet points (•) for each requested area (Stock, Customers/Fiado, Deliveries, Shift), strictly based on the REAL DATA above.
-3. CRITICAL RULE: NEVER use curly braces {} or variable template tags like {totalProducts}, {sampleItems}, or {metric:...}. Write clean, natural sentences with plain numbers and real names.
-4. NEVER invent fictitious store departments or customer names.
-5. Always format currency in Mozambican Meticais (MT).
-6. ZERO presets: do not use generic greetings or template brackets.`;
+MANDATORY INSTRUCTIONS (ZERO PRESETS):
+Respond in a natural, helpful retail-assistant voice covering ALL requested areas using your own words.
+1. Start naturally and introduce the real store data directly.
+2. Provide concise bullet points (•) for each requested area (Stock, Customers/Fiado, Deliveries, Shift Reports, Scans), strictly based on the REAL DATA above.
+3. If shift reports or scan history were requested, report exact cashiers, discrepancy amounts in MT, and scanned items factually.
+4. CRITICAL RULE: NEVER use curly braces {} or bracket placeholders like [Insert ...]. Write clean, natural sentences with plain numbers and real names.
+5. NEVER invent fictitious store departments, fake products (like Almond Butter), or imaginary customer names.
+6. Always format currency in Mozambican Meticais (MT). NEVER output dollars ($/USD) or foreign currency conversions.`;
 
   try {
     let streamedText = '';
@@ -142,6 +150,8 @@ Respond in a natural, helpful retail-assistant voice covering ALL requested area
       prompt: query,
       systemPrompt: systemInstruction,
       temperature: 0.35,
+      pacing,
+      signal,
       onChunk: (chunk: string) => {
         streamedText += chunk;
         if (onChunk) {
@@ -160,6 +170,7 @@ Respond in a natural, helpful retail-assistant voice covering ALL requested area
       toolCalled: toolNames.join(' + '),
       suggestedActions: [
         { label: isPt ? 'Ver Estoque' : 'View Inventory', tab: 'products' },
+        { label: isPt ? 'Abrir Caixa' : 'Register', tab: 'caixas' },
         { label: isPt ? 'Ver Clientes' : 'View Customers', tab: 'clients' }
       ],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

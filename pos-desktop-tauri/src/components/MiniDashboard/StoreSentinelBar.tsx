@@ -19,7 +19,6 @@ import {
   KeyRound,
   Bot
 } from 'lucide-react';
-import { VoiceInputButton } from '../common/VoiceInputButton';
 import { 
   askStoreSentinel, 
   SentinelResponse, 
@@ -68,16 +67,21 @@ export function StoreSentinelBar({ onNavigate, className = '' }: StoreSentinelBa
       setAiInfo(getActiveAiDisplayName());
       checkAiEngineStatus().then(st => setEngineStatus(st));
     };
+    const handleOpenChat = () => setIsDeepDiveOpen(true);
+
     updateStatus();
     window.addEventListener('online', updateStatus);
     window.addEventListener('offline', updateStatus);
     window.addEventListener('ai-config-changed', updateStatus);
     window.addEventListener('ai-provider-changed', updateStatus);
+    window.addEventListener('open-muse-agent-chat', handleOpenChat);
+
     return () => {
       window.removeEventListener('online', updateStatus);
       window.removeEventListener('offline', updateStatus);
       window.removeEventListener('ai-config-changed', updateStatus);
       window.removeEventListener('ai-provider-changed', updateStatus);
+      window.removeEventListener('open-muse-agent-chat', handleOpenChat);
     };
   }, []);
 
@@ -108,13 +112,6 @@ export function StoreSentinelBar({ onNavigate, className = '' }: StoreSentinelBa
     } finally {
       setIsAsking(false);
     }
-  };
-
-  // Handle voice transcription incoming from Muse Voice Transcribe
-  const handleVoiceTranscript = (transcribedText: string) => {
-    if (!transcribedText) return;
-    setQuery(transcribedText);
-    handleAsk(transcribedText, 'voice');
   };
 
   const handleActionClick = (action: SentinelAction) => {

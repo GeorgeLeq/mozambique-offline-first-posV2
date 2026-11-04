@@ -106,8 +106,23 @@ export function StaleShiftRecoveryModal({
           {/* Top warning line */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500" />
 
+          {/* Top-right Skip/Close button */}
+          <button
+            type="button"
+            onClick={() => {
+              toast.success('Bypassed shift alert — full app access granted');
+              onContinueCurrentShiftApproved();
+              onClose();
+            }}
+            className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
+            title="Skip security check and enter application"
+          >
+            <span>Skip</span>
+            <span>✕</span>
+          </button>
+
           {/* Header */}
-          <div className="flex items-start gap-4 mb-5">
+          <div className="flex items-start gap-4 mb-5 pr-12">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
               <ZapOff className="w-6 h-6" />
             </div>
@@ -187,6 +202,30 @@ export function StaleShiftRecoveryModal({
                   </div>
                 </div>
                 <AlertOctagon size={16} className="text-amber-500" />
+              </button>
+
+              {/* Direct Skip & Grant Full App Access */}
+              <button
+                type="button"
+                onClick={() => {
+                  toast.success('Bypassed shift alert — full app access granted');
+                  onContinueCurrentShiftApproved();
+                  onClose();
+                }}
+                className="w-full p-3 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-2xl font-bold text-xs transition-all flex items-center justify-between cursor-pointer border border-indigo-200 dark:border-indigo-800/80 shadow-2xs hover:scale-[1.01]"
+              >
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="w-7 h-7 rounded-xl bg-indigo-100 dark:bg-indigo-900/80 flex items-center justify-center text-indigo-600 dark:text-indigo-300">
+                    <ArrowRight size={14} />
+                  </div>
+                  <div>
+                    <span className="block font-bold">Skip & Access Full Application</span>
+                    <span className="block text-[10px] text-indigo-600/80 dark:text-indigo-300/80 font-medium">Bypass security alert and grant unrestricted access immediately.</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-600 text-white">
+                  Skip
+                </span>
               </button>
             </div>
           ) : (

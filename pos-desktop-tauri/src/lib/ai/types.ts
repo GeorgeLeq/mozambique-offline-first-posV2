@@ -140,12 +140,17 @@ export type ExecutableAiAction =
       type: 'add_to_cart';
       data: {
         items: Array<{
+          product_id?: string;
           product_name: string;
           quantity: number;
           unit_price_mt?: number;
+          cost_price_mt?: number;
+          current_stock?: number;
           unit_type?: string;
         }>;
         customer_name?: string;
+        total_sale_mt?: number;
+        profit_mt?: number;
       };
     }
   | {

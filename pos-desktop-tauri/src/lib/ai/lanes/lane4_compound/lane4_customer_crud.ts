@@ -11,6 +11,7 @@ import { ExecutableAiAction, SentinelResponse } from '../../types';
 export interface CustomerCrudOptions {
   query: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
   onChunk?: (chunk: string) => void;
 }
 
@@ -23,7 +24,7 @@ export function isCustomerCrudQuery(query: string): boolean {
 }
 
 export async function handleCustomerCrud(options: CustomerCrudOptions): Promise<SentinelResponse> {
-  const { query, lang = 'en', onChunk } = options;
+  const { query, lang = 'en', pacing = 'balanced', onChunk } = options;
   const isPt = lang === 'pt' || /adicionar|cliente|novo|cadastrar|fiado/i.test(query);
 
   let nameExtracted = 'New Customer';
@@ -90,9 +91,9 @@ ${cleanActionDesc}
 
 INSTRUÇÕES OBRIGATÓRIAS (ZERO PRESETS):
 Responda diretamente em texto natural com tom profissional de assistente de loja.
-1. Confirme em 1 frase inicial a ação preparada para o operador.
+1. Confirme com as suas próprias palavras a ação preparada para o operador.
 2. Destaque os detalhes em marcadores (•) (Nome, Fiado em MT).
-3. REGRA CRÍTICA: NUNCA use chavetas {} ou nomes de variáveis.
+3. REGRA CRÍTICA: NUNCA use chavetas {} nem escreva placeholders como [Insira ...] ou [Insert ...]. Use os dados reais preparados.
 4. Formate valores monetários em Meticais (MT).`
     : `You are Store Sentinel AI for SYCOMM POS retail shops in Mozambique.
 STAGED SQLITE ACTION DETAILS:
@@ -100,9 +101,9 @@ ${cleanActionDesc}
 
 MANDATORY INSTRUCTIONS (ZERO PRESETS):
 Respond directly in natural text in a professional store assistant voice.
-1. Confirm the staged action in 1 clear opening sentence.
+1. Confirm the staged action naturally in your own words.
 2. Provide concise bullet points (•) highlighting the details (Name, Debt in MT).
-3. CRITICAL RULE: NEVER output curly braces {} or variable tags. Write clean, natural prose.
+3. CRITICAL RULE: NEVER output curly braces {} or bracket placeholders like [Insert New Customer Name]. State the actual details directly.
 4. Always format currency in Mozambican Meticais (MT).`;
 
   try {
@@ -111,6 +112,7 @@ Respond directly in natural text in a professional store assistant voice.
       prompt: query,
       systemPrompt: systemInstruction,
       temperature: 0.35,
+      pacing,
       onChunk: (chunk: string) => {
         streamedText += chunk;
         if (onChunk) {
@@ -119,9 +121,16 @@ Respond directly in natural text in a professional store assistant voice.
       }
     });
 
-    const cleanAnswer = (aiRes.text || '')
+    const rawAnswer = aiRes.text || '';
+    const cleanAnswer = rawAnswer
       .replace(/\{[a-zA-Z0-9_\[\]\s:"',-]+\}\s*/g, '')
       .replace(/\{\s*\}/g, '')
+      .replace(/\[\s*(?:Insert|Insira|Preencha|Digite)[^\]]*\]/gi, '')
+      .replace(/\[\s*\]/g, '')
+      .replace(/\s*\((?:approximately|aprox\.?|cerca de)?\s*\$[\d.,]+\s*(?:USD)?\)/gi, '')
+      .replace(/\b(?:USD|\$)\s*(\d+(?:[.,]\d+)?)/gi, '$1 MT')
+      .replace(/\$\s*\[/g, '[')
+      .replace(/\bSimbamente\b/gi, 'Certamente')
       .trim();
 
     return {

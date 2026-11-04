@@ -11,6 +11,7 @@ import { ExecutableAiAction, SentinelResponse } from '../../types';
 export interface OperatorCrudOptions {
   query: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
 }
 
 export function isOperatorCrudQuery(query: string): boolean {
@@ -22,7 +23,7 @@ export function isOperatorCrudQuery(query: string): boolean {
 }
 
 export async function handleOperatorCrud(options: OperatorCrudOptions): Promise<SentinelResponse> {
-  const { query, lang = 'en' } = options;
+  const { query, lang = 'en', pacing = 'balanced' } = options;
   const isPt = lang === 'pt' || /adicionar|operador|caixa|bloquear|cadastrar/i.test(query);
 
   let nameExtracted = 'New Operator';
@@ -105,6 +106,7 @@ export async function handleOperatorCrud(options: OperatorCrudOptions): Promise<
         ? `Você é o assistente Store Sentinel POS em Moçambique. O operador solicitou gerir perfis de operadores de caixa. Responda em UMA ÚNICA frase curta e direta confirmando o perfil. Chame a ferramenta manage_operator. NUNCA escreva tutoriais, manuais, passos numerados nem instruções de banco de dados SQL.`
         : `You are Store Sentinel POS assistant in Mozambique. The cashier requested to manage cashier profiles. Respond in ONE single short, direct sentence confirming the operator card. Call the manage_operator tool. CRITICAL: NEVER write tutorials, numbered steps, manuals, or database guides. Respond directly to the cashier.`,
       temperature: 0.1,
+      pacing,
       tools: toolsDef
     });
 

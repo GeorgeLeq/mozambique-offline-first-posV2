@@ -22,7 +22,6 @@ import {
 } from './subscriptions';
 import { syncLiveMetricsToCloud } from './liveMetrics';
 import { syncSystemConfigFromCloud } from './systemConfig';
-import { syncVoiceAuditsToCloud } from './voiceAudits';
 import { syncAiCommandLogsToCloud, syncAiCommandLogsFromCloud } from './aiCommandLogs';
 import { loadEntitlementsFromDb } from '../../subscription/subscriptionDb';
 
@@ -110,7 +109,6 @@ export async function syncAllToCloud(): Promise<{ success: boolean; hasMoreWork:
       { name: 'Till Payouts (To)', fn: syncTillPayoutsToCloud },
       { name: 'Spoiled Items (To)', fn: syncSpoiledItemsToCloud },
       { name: 'Audit Logs (To)', fn: syncAuditLogsToCloud },
-      { name: 'AI Voice Audits (To)', fn: syncVoiceAuditsToCloud },
       { name: 'AI Command Logs (To)', fn: syncAiCommandLogsToCloud },
       { name: 'AI Command Logs (From)', fn: syncAiCommandLogsFromCloud },
       { name: 'Scan History (To)', fn: syncScanHistoryToCloud },

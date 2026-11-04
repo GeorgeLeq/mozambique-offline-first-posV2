@@ -11,6 +11,7 @@ import { ExecutableAiAction, SentinelResponse } from '../../types';
 export interface DeliveryPoOptions {
   query: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
 }
 
 export function isDeliveryPoQuery(query: string): boolean {
@@ -28,7 +29,7 @@ export function isDeliveryPoQuery(query: string): boolean {
 }
 
 export async function handleDeliveryPo(options: DeliveryPoOptions): Promise<SentinelResponse> {
-  const { query, lang = 'en' } = options;
+  const { query, lang = 'en', pacing = 'balanced' } = options;
   const isPt = lang === 'pt' || /entrega|fornecedor|reabastecer|encomenda/i.test(query);
 
   let supplierName = 'Fornecedor Principal';
@@ -88,6 +89,7 @@ export async function handleDeliveryPo(options: DeliveryPoOptions): Promise<Sent
         ? `Você é o assistente Store Sentinel POS em Moçambique. O operador solicitou registar a entrega do fornecedor "${supplierName}". Responda em UMA ÚNICA frase curta e direta confirmando o registo. NUNCA mencione nomes de ferramentas de IA nem tutoriais.`
         : `You are Store Sentinel POS assistant in Mozambique. The cashier requested to register a delivery from supplier "${supplierName}". Respond in ONE single short, direct sentence confirming the draft order. NEVER mention AI tool names or tutorials.`,
       temperature: 0.1,
+      pacing,
       tools: toolsDef
     });
 

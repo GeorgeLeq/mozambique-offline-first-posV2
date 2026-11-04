@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Users, Package, Barcode, UserCircle2, FileText, 
   Settings as SettingsIcon, LayoutDashboard, Sliders, RefreshCw, 
-  Search, ChevronLeft, ChevronRight, LogOut, Wallet, ShieldCheck, Eye, Lock, Crown 
+  Search, ChevronLeft, ChevronRight, LogOut, Wallet, ShieldCheck, Eye, Lock, Crown, Bot 
 } from 'lucide-react';
 import EmployeeManager from './employee';
 import ProductManager from './ProductManager';
@@ -109,6 +109,24 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
     }
   };
 
+  const [returnToAiChat, setReturnToAiChat] = useState(false);
+
+  useEffect(() => {
+    const handleAiNav = () => setReturnToAiChat(true);
+    window.addEventListener('ai-navigated-shortcut', handleAiNav);
+    return () => window.removeEventListener('ai-navigated-shortcut', handleAiNav);
+  }, []);
+
+  const handleSubViewBack = () => {
+    setActiveTab('menu');
+    if (returnToAiChat) {
+      setReturnToAiChat(false);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-muse-agent-chat'));
+      }, 100);
+    }
+  };
+
   const allowedItems = menuItems.filter(item => {
     if (item.adminOnly && currentUser?.role?.toLowerCase() !== 'admin') return false;
     if (item.permission && !hasPermission(item.permission)) return false;
@@ -117,24 +135,24 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
 
   const renderContent = () => {
     if (activeTab === 'employees') {
-      return <EmployeeManager onBack={() => setActiveTab('menu')} />;
+      return <EmployeeManager onBack={handleSubViewBack} />;
     }
     if (activeTab === 'caixas') {
-      return <CashierControlManager onBack={() => setActiveTab('menu')} />;
+      return <CashierControlManager onBack={handleSubViewBack} />;
     }
     if (activeTab === 'products') {
-      return <ProductManager onBack={() => setActiveTab('menu')} defaultTab="inventory" />;
+      return <ProductManager onBack={handleSubViewBack} defaultTab="inventory" />;
     }
     if (activeTab === 'barcodes') {
-      return <BarcodeManager onBack={() => setActiveTab('menu')} />;
+      return <BarcodeManager onBack={handleSubViewBack} />;
     }
     if (activeTab === 'clients') {
-      return <ClientManager onBack={() => setActiveTab('menu')} />;
+      return <ClientManager onBack={handleSubViewBack} />;
     }
     if (activeTab === 'reports') {
       return (
         <ShiftReports 
-          onBack={() => setActiveTab('menu')}
+          onBack={handleSubViewBack}
           onOpenScans={hasPermission('scans') ? (userId, userName) => {
             if (!isFeatureUnlocked('advanced_audits')) {
               openFeatureLockModal(
@@ -151,10 +169,10 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
       );
     }
     if (activeTab === 'settings') {
-      return <Settings onBack={() => setActiveTab('menu')} />;
+      return <Settings onBack={handleSubViewBack} />;
     }
     if (activeTab === 'audit') {
-      return <AuditLogs onBack={() => setActiveTab('menu')} />;
+      return <AuditLogs onBack={handleSubViewBack} />;
     }
     if (activeTab === 'scans') {
       return (
@@ -165,16 +183,16 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
         >
           <ScanHistoryManager onBack={() => {
             setTargetScanUser(null);
-            setActiveTab('menu');
+            handleSubViewBack();
           }} initialUser={targetScanUser} />
         </FeatureGate>
       );
     }
     if (activeTab === 'restock') {
-      return <ProductManager onBack={() => setActiveTab('menu')} defaultTab="orders" />;
+      return <ProductManager onBack={handleSubViewBack} defaultTab="orders" />;
     }
     if (activeTab === 'stock_checker') {
-      return <ProductManager onBack={() => setActiveTab('menu')} defaultTab="checker" />;
+      return <ProductManager onBack={handleSubViewBack} defaultTab="checker" />;
     }
 
     return (
@@ -400,6 +418,22 @@ export default function BackofficeDashboard({ onBack }: { onBack: () => void }) 
           >
             <ChevronRight size={15} className="stroke-[3] animate-pulse" />
             <span>Mostrar Barra</span>
+          </motion.button>
+        )}
+
+        {/* Floating Return to AI Chat Button */}
+        {returnToAiChat && activeTab !== 'menu' && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+            whileHover={{ scale: 1.05 }}
+            onClick={handleSubViewBack}
+            className="fixed top-5 right-20 z-[9999] px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center gap-2 font-extrabold text-xs cursor-pointer border border-indigo-500 hover:from-indigo-500 hover:to-indigo-600 select-none outline-none animate-bounce"
+            title="Click to return directly to Store Sentinel AI Chat"
+          >
+            <Bot className="w-4 h-4 text-amber-300 animate-pulse" />
+            <span>Return to AI Chat 💬</span>
           </motion.button>
         )}
       </div>

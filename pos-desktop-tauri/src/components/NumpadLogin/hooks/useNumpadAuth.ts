@@ -12,9 +12,13 @@ export function useNumpadAuth(): NumpadAuthHookResult {
 
   const cashShift = useCashShiftPrompt({ pin, setPin, setError });
 
-  // Automatically submit PIN when 6 digits are typed
+  // Automatically submit PIN when 4-digit demo PIN or 6 digits are typed
   useEffect(() => {
-    if (pin.length === 6 && !cashShift.isCashPromptOpen && !isLoading) {
+    if (
+      (pin.length === 6 || (pin.length === 4 && ['1234', '1001', '2001', '3001'].includes(pin))) &&
+      !cashShift.isCashPromptOpen &&
+      !isLoading
+    ) {
       handleLogin(pin);
     }
   }, [pin, cashShift.isCashPromptOpen, isLoading]);

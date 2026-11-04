@@ -25,6 +25,7 @@ import {
 export interface MarketingOptions {
   query: string;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
   onChunk?: (chunk: string) => void;
 }
 
@@ -122,7 +123,7 @@ function isRemovePromoRequest(query: string): boolean {
  * Executes Lane 1: Pure neural marketing generation with ZERO presets.
  */
 export async function handleMarketingQuery(options: MarketingOptions): Promise<SentinelResponse> {
-  const { query, lang = 'en', onChunk } = options;
+  const { query, lang = 'en', pacing = 'balanced', onChunk } = options;
   const isPt = lang === 'pt' || /whatsapp|anúncio|promoção|slogan|divulgar|vender|campanha|remover|imagem/i.test(query);
 
   // 1. Check for Promo Banner Removal request
@@ -288,6 +289,7 @@ Provide direct, compelling promotional copy or actionable promotional ideas with
       prompt: userPrompt,
       systemPrompt,
       temperature: 0.75,
+      pacing,
       onChunk
     });
 

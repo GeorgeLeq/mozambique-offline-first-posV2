@@ -85,11 +85,26 @@ export function extractSuggestedActions(text: string): Array<{ label: string; ta
 /**
  * Strips any trailing roleplay hallucinations (e.g., 'User: ... Assistant: ...')
  * that small 1B models occasionally generate when concluding a response.
+ * Strictly sanitizes any Brazilian Real currency symbols (R$) to Mozambican Meticais (MT).
  */
 function cleanTrailingDialogue(raw: string): string {
   if (!raw) return '';
   return raw
     .replace(/(?:\r?\n|^)\s*(?:User|Assistant|Operator|Store Sentinel AI):[\s\S]*$/i, '')
+    // Fix Brazilian currency
+    .replace(/R\$\s*(\d+(?:[.,]\d+)?)/gi, '$1 MT')
+    .replace(/R\$/g, 'MT')
+    .replace(/\breais\b/gi, 'Meticais')
+    // Remove foreign currency dollar conversions e.g. "(approximately $0.80 USD)" or "$[Insert Price]"
+    .replace(/\s*\((?:approximately|aprox\.?|cerca de)?\s*\$[\d.,]+\s*(?:USD)?\)/gi, '')
+    .replace(/\b(?:USD|\$)\s*(\d+(?:[.,]\d+)?)/gi, '$1 MT')
+    .replace(/\$\s*\[/g, '[')
+    // Clean invented pseudo-Portuguese words like "Simbamente" -> "Certamente"
+    .replace(/\bSimbamente\b/gi, 'Certamente')
+    .replace(/\bsimbamente\b/gi, 'certamente')
+    // Strip empty placeholder brackets like [Insert ...] or [Insira ...]
+    .replace(/\[\s*(?:Insert|Insira|Preencha|Digite)[^\]]*\]/gi, '')
+    .replace(/\[\s*\]/g, '')
     .trim();
 }
 
@@ -109,15 +124,29 @@ export async function queryUnifiedAiEngine(options: {
   chatHistory?: ChatHistoryTurn[];
   temperature?: number;
   maxTokens?: number;
+  pacing?: 'fast' | 'balanced' | 'detailed';
   tools?: any[];
   format?: 'json' | string;
+  signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
 }): Promise<UnifiedAiChatResult> {
-  const { prompt, systemPrompt, telemetryContext, chatHistory = [], temperature = 0.1, maxTokens, tools, format, onChunk } = options;
+  const { prompt, systemPrompt, telemetryContext, chatHistory = [], temperature = 0.1, maxTokens, pacing = 'balanced', tools, format, signal, onChunk } = options;
   const provider = getActiveAiProvider();
   const startTime = performance.now();
 
   let combinedSystem = systemPrompt?.trim() || `You are the local POS assistant for SYCOMM retail store in Mozambique. Provide direct, complete, and factual answers.`;
+
+  // Strict Mozambican Currency Enforcement
+  combinedSystem += `\n[CURRENCY MANDATE: Store currency is strictly Mozambican Meticais (MT). NEVER output Brazilian Reais (R$), Dollars ($), or Euros (€). Always write 'MT'.]`;
+
+  // Apply user-selected Pacing Mode instruction to guide response length without presets
+  if (pacing === 'fast') {
+    combinedSystem += `\n[PACING REQUIREMENT: FAST] Keep your response ultra-concise in 1 to 2 short sentences. Deliver immediate numbers with zero conversational padding.`;
+  } else if (pacing === 'detailed') {
+    combinedSystem += `\n[PACING REQUIREMENT: IN-DEPTH] Provide a comprehensive, rich, and exhaustive multi-paragraph response with full retail operational context.`;
+  } else {
+    combinedSystem += `\n[PACING REQUIREMENT: BALANCED] Provide 1 direct opening sentence followed by 2 to 3 concise bullet points with numbers.`;
+  }
 
   // If user explicitly configured Baseten Muse Spark as active provider
   if (provider === 'baseten-muse') {
@@ -166,7 +195,12 @@ export async function queryUnifiedAiEngine(options: {
     combinedSystem.includes('CRITICAL OPEN-CHAT INSTRUCTIONS') ||
     /how can i|how to|improve|sales|advice|explain|detail|recommend|strategy|story|história|historia|poem|poema|joke|piada|promot|anúncio|resumo|summary|encourage|animar|market|marketing|vendas|campaign|campanha|ad\b|ad copy|publicidade|ideias|tips|dicas/i.test(prompt);
 
-  const dynamicNumPredict = maxTokens ?? (isCreativeOrLongContent ? 2048 : 512);
+  let defaultTokensForPacing = isCreativeOrLongContent ? 2048 : 512;
+  if (pacing === 'fast') defaultTokensForPacing = 140;
+  else if (pacing === 'balanced') defaultTokensForPacing = 320;
+  else if (pacing === 'detailed') defaultTokensForPacing = isCreativeOrLongContent ? 2048 : 850;
+
+  const dynamicNumPredict = maxTokens ?? defaultTokensForPacing;
 
   // Options optimized for complete, uninterrupted generation
   const effectiveTemperature = options.temperature ?? (isCreativeOrLongContent ? 0.75 : 0.2);
@@ -232,6 +266,10 @@ export async function queryUnifiedAiEngine(options: {
       // 1. Primary Attempt: Ollama native /api/chat endpoint (applies model's native chat template with role tokens)
       const chatController = new AbortController();
       const chatTimeoutId = setTimeout(() => chatController.abort(), 25000);
+      if (signal) {
+        signal.addEventListener('abort', () => chatController.abort(), { once: true });
+        if (signal.aborted) chatController.abort();
+      }
 
       const chatBody: Record<string, any> = {
         model: targetModel,
@@ -321,6 +359,10 @@ export async function queryUnifiedAiEngine(options: {
           let buffer = '';
 
           while (true) {
+            if (signal?.aborted) {
+              try { await reader.cancel(); } catch (_) {}
+              break;
+            }
             const { done, value } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });

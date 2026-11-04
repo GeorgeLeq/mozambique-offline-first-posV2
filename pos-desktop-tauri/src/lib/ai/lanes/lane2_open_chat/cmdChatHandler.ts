@@ -15,6 +15,8 @@ export interface CmdChatOptions {
   query: string;
   chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   lang?: 'en' | 'pt';
+  pacing?: 'fast' | 'balanced' | 'detailed';
+  signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
 }
 
@@ -61,17 +63,35 @@ export function isOpenChatQuery(query: string): boolean {
  * Configured for thorough, comprehensive, long responses with ZERO store telemetry constraints.
  */
 export async function handleOpenChatQuery(options: CmdChatOptions): Promise<SentinelResponse> {
-  const { query, chatHistory = [], lang = 'en', onChunk } = options;
+  const { query, chatHistory = [], lang = 'en', pacing = 'balanced', onChunk } = options;
   const isPt = lang === 'pt' || /olá|ola|bom dia|como vai|tudo bem|poema|história|piada/i.test(query);
 
-  // Pure CMD System Prompt: Explicitly requests very long, thorough, and in-depth responses
-  const systemPrompt = isPt
-    ? `Você é o Store Sentinel AI, um assistente de inteligência completo, altamente articulado, culto e conhecedor.
-Forneça respostas LONGAS, APROFUNDADAS, DETALHADAS e ABRANGENTES em português.
-Para conversação aberta, perguntas de tecnologia, ciência, negócios, conselhos, histórias ou poesia, desenvolva os seus raciocínios com explicações ricas, múltiplos parágrafos e detalhes completos. NUNCA resuma ou encurte a resposta prematuramente. Mantenha a resposta fluida, informativa e muito completa.`
-    : `You are Store Sentinel AI, an intelligent, highly articulate, deeply knowledgeable, and engaging copilot.
-Provide VERY LONG, DETAILED, COMPREHENSIVE, AND IN-DEPTH responses.
-For open conversation, general knowledge, technology, business advice, stories, or creative requests, expand thoroughly with complete paragraphs, rich explanations, and exhaustive context. NEVER cut off or shorten your answer prematurely. Fully articulate all details and ideas.`;
+  const isGreetingOrCourtesy = /^(hello|hi|hey|good morning|good afternoon|good evening|how are you|how do you do|who are you|what is your name|olá|ola|bom dia|boa tarde|boa noite|como vai|tudo bem)\b/i.test(query.trim());
+
+  // Dynamic system prompt: For greetings, keep it natural, warm, and helpful without inventing fake daily metrics or daydreams.
+  // For open knowledge, keep it rich and knowledgeable.
+  let systemPrompt = '';
+  if (isGreetingOrCourtesy) {
+    systemPrompt = isPt
+      ? `Você é o Store Sentinel AI, o assistente inteligente da loja no SYCOMM POS.
+Responda de forma natural, calorosa, educada e direta ao cumprimento do operador.
+Diga que está tudo bem e pergunte em que pode ajudar no caixa, stock ou operações da loja hoje.
+NUNCA invente números de vendas falsos (como 10.000 clientes ou 700 transações), nem invente histórias sobre o clima ou o dia lá fora.`
+      : `You are Store Sentinel AI, the intelligent store copilot for SYCOMM POS.
+Respond in a warm, polite, natural, and helpful tone to the operator's greeting.
+Express that you are doing well and ready to assist with POS sales, stock, customers, or store operations.
+NEVER invent fake store numbers (like 10,000 customers or 700 sales), and NEVER invent daydreams about weather or scenery outside.`;
+  } else {
+    systemPrompt = isPt
+      ? `Você é o Store Sentinel AI, um assistente inteligente, conhecedor e prestativo para lojas em Moçambique.
+Forneça respostas claras, conhecedoras e bem explicadas em português de Moçambique.
+Para perguntas de tecnologia, ciência, negócios, dicas comerciais ou conversa geral, responda com raciocínio natural e articulado.
+NUNCA invente dados operacionais fictícios nem invente palavras inexistentes.`
+      : `You are Store Sentinel AI, an intelligent, knowledgeable, and helpful retail copilot for stores in Mozambique.
+Provide clear, articulate, and insightful responses.
+For questions on technology, science, business ideas, or general conversation, explain ideas clearly and knowledgeably.
+NEVER invent fictitious store operations or make up fake metrics.`;
+  }
 
   // Format clean conversational context without any store telemetry
   const historyTurns = chatHistory.slice(-4).map(turn => ({
@@ -84,7 +104,9 @@ For open conversation, general knowledge, technology, business advice, stories, 
       prompt: query,
       systemPrompt,
       chatHistory: historyTurns,
-      temperature: 0.85, // Higher creativity for long articulate responses
+      temperature: isGreetingOrCourtesy ? 0.4 : 0.7, // Controlled temperature for greetings to prevent hallucinating stories
+      pacing: isGreetingOrCourtesy ? 'fast' : pacing,
+      signal: options.signal,
       onChunk
     });
 

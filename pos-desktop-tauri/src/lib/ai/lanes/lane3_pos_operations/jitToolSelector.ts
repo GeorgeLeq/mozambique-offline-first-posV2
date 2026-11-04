@@ -9,6 +9,8 @@ export type PosJitToolName =
   | 'fetch_inventory'
   | 'fetch_customers'
   | 'fetch_shifts'
+  | 'fetch_shift_reports'
+  | 'fetch_scan_history'
   | 'fetch_deliveries'
   | 'fetch_store_overview';
 
@@ -19,7 +21,7 @@ export interface PosJitToolSelection {
 }
 
 /**
- * Checks if a query is a single operational query suitable for Lane 3.
+ * Checks if a query is an operational query suitable for Lane 3.
  */
 export function isPosOperationQuery(query: string): boolean {
   const q = query.toLowerCase().trim();
@@ -34,6 +36,11 @@ export function isPosOperationQuery(query: string): boolean {
     'who is logged in', 'who logged in', 'logged in', 'who currently has a shift',
     'who has a shift', 'active shift', 'who is the cashier', 'who is the operator',
     'quem está logado', 'quem logou', 'turno', 'caixa aberto',
+    'shift report', 'shift reports', 'relatório de turno', 'relatórios de turno',
+    'discrepancy', 'discrepâncias', 'quebra de caixa', 'quebra', 'shortage',
+    'cash shortage', 'stole', 'stolen', 'roubou', 'roubo', 'auditoria', 'audit',
+    'falta de caixa', 'scan history', 'histórico de leituras', 'scanned', 'barcode',
+    'código de barras', 'leituras', 'produtos lidos',
     'how many customers', 'quantos clientes', 'customers do we have', 'who owes money',
     'quem deve', 'fiado', 'debt', 'dívida', 'devedores',
     'expected deliveries', 'delivery stocks', 'entregas esperadas', 'fornecedor',
@@ -49,7 +56,41 @@ export function isPosOperationQuery(query: string): boolean {
 export function selectJitTool(query: string): PosJitToolSelection {
   const q = query.toLowerCase().trim();
 
-  // 1. Multi-domain query ("How many customers, products and delivery stocks do we have?")
+  // 1. Shift Reports & Register Audits / Shortages / Discrepancies
+  if (
+    q.includes('shift report') || q.includes('shift reports') ||
+    q.includes('relatório de turno') || q.includes('relatórios de turno') ||
+    q.includes('relatorio de turno') || q.includes('relatorios de turno') ||
+    q.includes('discrepancy') || q.includes('discrepancies') || q.includes('discrepância') ||
+    q.includes('quebra de caixa') || q.includes('quebra') ||
+    q.includes('shortage') || q.includes('cash shortage') ||
+    q.includes('stole') || q.includes('stolen') || q.includes('roubou') || q.includes('roubo') ||
+    q.includes('falta de caixa') || q.includes('falta de dinheiro') ||
+    q.includes('audit') || q.includes('auditoria')
+  ) {
+    return {
+      name: 'fetch_shift_reports',
+      params: {},
+      description: 'Fetch cashier shift closing reports, cash register audits, and theft or shortage discrepancies'
+    };
+  }
+
+  // 2. Barcode Scan History & Out-of-Stock Product Scans
+  if (
+    q.includes('scan history') || q.includes('histórico de leituras') ||
+    q.includes('historico de leituras') || q.includes('scanned') ||
+    q.includes('leituras de código') || q.includes('leituras de codigo') ||
+    q.includes('barcode') || q.includes('código de barras') || q.includes('codigo de barras') ||
+    q.includes('produtos lidos') || q.includes('quem bipou') || q.includes('quem leu')
+  ) {
+    return {
+      name: 'fetch_scan_history',
+      params: {},
+      description: 'Fetch barcode scanner logs and historical scanned items by cashier operators'
+    };
+  }
+
+  // 3. Multi-domain query ("How many customers, products and delivery stocks do we have?")
   const hasProds = (q.includes('product') || q.includes('produto') || (q.includes('stock') && !q.includes('delivery stock'))) && !q.includes('add');
   const hasCusts = (q.includes('customer') || q.includes('cliente') || q.includes('client')) && !q.includes('add');
   const hasDelivs = (q.includes('delivery') || q.includes('deliveries') || q.includes('entrega')) && !q.includes('add');
@@ -62,7 +103,7 @@ export function selectJitTool(query: string): PosJitToolSelection {
     };
   }
 
-  // 2. Shifts & Cashier / Operator Login ("who is logged in?", "who has a shift?")
+  // 4. Shifts & Cashier / Operator Login ("who is logged in?", "who has a shift?")
   if (
     q.includes('logged in') || q.includes('logged') || q.includes('login') ||
     q.includes('shift') || q.includes('turno') || q.includes('cashier') ||
@@ -76,7 +117,7 @@ export function selectJitTool(query: string): PosJitToolSelection {
     };
   }
 
-  // 3. Deliveries / incoming restock ("how many delivery stocks?")
+  // 5. Deliveries / incoming restock ("how many delivery stocks?")
   if (q.includes('delivery') || q.includes('deliveries') || q.includes('entrega') || q.includes('fornecedor')) {
     return {
       name: 'fetch_deliveries',
@@ -85,7 +126,7 @@ export function selectJitTool(query: string): PosJitToolSelection {
     };
   }
 
-  // 4. Customers & Fiado Debts
+  // 6. Customers & Fiado Debts
   if (
     q.includes('customer') || q.includes('cliente') || q.includes('client') ||
     q.includes('debt') || q.includes('dívida') || q.includes('fiado') ||
@@ -98,7 +139,7 @@ export function selectJitTool(query: string): PosJitToolSelection {
     };
   }
 
-  // 5. Default to Inventory / Stock Products
+  // 7. Default to Inventory / Stock Products
   return {
     name: 'fetch_inventory',
     params: {

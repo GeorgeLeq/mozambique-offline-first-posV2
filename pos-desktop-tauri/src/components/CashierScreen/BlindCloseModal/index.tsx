@@ -9,8 +9,6 @@ import { BlindCloseAudit } from './BlindCloseAudit';
 import { useAuth } from '../../../contexts/AuthContext';
 import { sanitizeNumeric } from '../../../lib/security/sanitizer';
 import { useI18n } from '../../../i18n';
-import { VoiceInputButton } from '../../common/VoiceInputButton';
-import { ParsedCashUpResult } from '../../../lib/ai/voiceIntentParser';
 
 interface BlindCloseModalProps {
   isOpen: boolean;
@@ -282,17 +280,6 @@ export function BlindCloseModal({ isOpen, onClose, onConfirmClose }: BlindCloseM
                   >
                     <Calculator size={14} /> {t.billCalculator || 'Calculadora de Notas'}
                   </button>
-                  <div className="flex items-center">
-                    <VoiceInputButton
-                      mode="cash_up"
-                      size="sm"
-                      label="Contar por Voz"
-                      cashierId={currentUser?.id}
-                      cashierName={currentUser?.name}
-                      shiftId={currentUser?.current_shift_start}
-                      onParsedCashUp={(res) => handleApplyVoiceCounts(res.counts, res.matchedPhrases.join(', '))}
-                    />
-                  </div>
                 </div>
               </div>
 

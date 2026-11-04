@@ -94,11 +94,15 @@ export async function askStoreSentinel(
     currentUser?: { id?: string; name?: string; role?: string; terminal_name?: string } | null;
     chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
     lang?: string;
+    pacing?: 'fast' | 'balanced' | 'detailed';
+    signal?: AbortSignal;
     onChunk?: (chunk: string) => void;
   } = {}
 ): Promise<SentinelResponse> {
   const operatorName = options.currentUser?.name || options.userName || 'Admin';
   const lang = (options.lang === 'pt' ? 'pt' : 'en') as 'en' | 'pt';
+  const pacing = options.pacing;
+  const signal = options.signal;
   const qClean = query.trim();
 
   try {
@@ -114,7 +118,9 @@ export async function askStoreSentinel(
           tasks: decomposition.tasks,
           query: qClean,
           operatorName,
-          lang
+          lang,
+          pacing,
+          onChunk: options.onChunk
         });
 
         await logCommand({
@@ -133,7 +139,7 @@ export async function askStoreSentinel(
 
     if (isProductCrudQuery(qClean)) {
       setProfilerGear(4, qClean);
-      const res = await handleProductCrud({ query: qClean, lang, onChunk: options.onChunk });
+      const res = await handleProductCrud({ query: qClean, lang, pacing, onChunk: options.onChunk });
       await logCommand({
         operatorName,
         query: qClean,
@@ -148,7 +154,7 @@ export async function askStoreSentinel(
 
     if (isCustomerCrudQuery(qClean)) {
       setProfilerGear(4, qClean);
-      const res = await handleCustomerCrud({ query: qClean, lang, onChunk: options.onChunk });
+      const res = await handleCustomerCrud({ query: qClean, lang, pacing, onChunk: options.onChunk });
       await logCommand({
         operatorName,
         query: qClean,
@@ -163,7 +169,7 @@ export async function askStoreSentinel(
 
     if (isOperatorCrudQuery(qClean)) {
       setProfilerGear(4, qClean);
-      const res = await handleOperatorCrud({ query: qClean, lang });
+      const res = await handleOperatorCrud({ query: qClean, lang, pacing });
       await logCommand({
         operatorName,
         query: qClean,
@@ -178,7 +184,7 @@ export async function askStoreSentinel(
 
     if (isCartCheckoutQuery(qClean)) {
       setProfilerGear(4, qClean);
-      const res = await handleCartCheckout({ query: qClean, lang });
+      const res = await handleCartCheckout({ query: qClean, lang, pacing, onChunk: options.onChunk });
       await logCommand({
         operatorName,
         query: qClean,
@@ -204,6 +210,8 @@ export async function askStoreSentinel(
           query: qClean,
           operatorName,
           lang,
+          pacing,
+          signal,
           onChunk: options.onChunk
         });
 
@@ -224,6 +232,8 @@ export async function askStoreSentinel(
         query: qClean,
         operatorName,
         lang,
+        pacing,
+        signal,
         onChunk: options.onChunk
       });
 
@@ -242,7 +252,7 @@ export async function askStoreSentinel(
 
     if (isDeliveryPoQuery(qClean)) {
       setProfilerGear(4, qClean);
-      const res = await handleDeliveryPo({ query: qClean, lang });
+      const res = await handleDeliveryPo({ query: qClean, lang, pacing });
       await logCommand({
         operatorName,
         query: qClean,
@@ -283,6 +293,7 @@ export async function askStoreSentinel(
       const res = await handleMarketingQuery({
         query: qClean,
         lang,
+        pacing,
         onChunk: options.onChunk
       });
 
@@ -310,6 +321,8 @@ export async function askStoreSentinel(
         query: qClean,
         chatHistory: options.chatHistory,
         lang,
+        pacing,
+        signal,
         onChunk: options.onChunk
       });
 
@@ -359,6 +372,8 @@ export async function askStoreSentinel(
       query: qClean,
       chatHistory: options.chatHistory,
       lang,
+      pacing,
+      signal,
       onChunk: options.onChunk
     });
 
@@ -403,7 +418,20 @@ function isOperationalKeywords(query: string): boolean {
     q.includes('delivery') ||
     q.includes('entrega') ||
     q.includes('fiado') ||
-    q.includes('debt')
+    q.includes('debt') ||
+    q.includes('discrepanc') ||
+    q.includes('shortage') ||
+    q.includes('quebra') ||
+    q.includes('roubo') ||
+    q.includes('roubou') ||
+    q.includes('stole') ||
+    q.includes('stolen') ||
+    q.includes('audit') ||
+    q.includes('auditoria') ||
+    q.includes('scan') ||
+    q.includes('leitura') ||
+    q.includes('barcode') ||
+    q.includes('código de barras')
   );
 }
 
