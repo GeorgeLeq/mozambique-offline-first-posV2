@@ -24,6 +24,7 @@ interface AuthContextType {
   logout: () => void | Promise<void>;
   activateDevice: (shopCode: string, masterPin: string, onProgress?: (percent: number, message: string, totalRecords: number) => void) => Promise<boolean>;
   activateByMasterPin: (masterPin: string, onProgress?: (percent: number, message: string, totalRecords: number) => void) => Promise<boolean>;
+  skipDeviceSetup: () => Promise<boolean>;
   deactivateDevice: () => Promise<void>;
 }
 
@@ -49,22 +50,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('device-deactivated', handleDeactivation);
   }, []);
 
+  async function bootstrapDefaultDeviceState() {
+    const db = await getDB();
+    const result = await db.select('SELECT * FROM settings WHERE key = ?', ['shop_id']) as { key: string, value: string }[];
+
+    if (!result || result.length === 0) {
+      await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_id', 'shop-sycomm-maputo']);
+      await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_name', 'SYCOMM Retail Maputo']);
+      await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_code', 'SYCOMM']);
+    }
+
+    const existingAdmin = await findUserByPin(db, '1234');
+    if (!existingAdmin) {
+      const adminId = 'admin-sycomm-master';
+      const hashed = await hashPin('1234');
+      await db.execute(
+        'INSERT OR REPLACE INTO users (id, name, role, pin, needs_shift_cash, is_blocked) VALUES (?, ?, ?, ?, 0, 0)',
+        [adminId, 'Admin SYCOMM', 'Admin', hashed]
+      );
+    }
+
+    localStorage.setItem('pos_first_boot_complete', 'true');
+    localStorage.setItem('locale_lang', 'en');
+    window.dispatchEvent(new Event('locale-changed'));
+  }
+
   async function checkActivation() {
     try {
       const db = await getDB();
       const result = await db.select('SELECT * FROM settings WHERE key = ?', ['shop_id']) as {key: string, value: string}[];
+
       if (result && result.length > 0) {
+        localStorage.setItem('pos_first_boot_complete', 'true');
         setIsActivated(true);
-      } else {
-        // Auto-bootstrap offline shop settings so judges never face cloud device activation screens
-        await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_id', 'shop-sycomm-maputo']);
-        await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_name', 'SYCOMM Retail Maputo']);
-        await db.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ['shop_code', 'SYCOMM']);
-        setIsActivated(true);
+        return;
       }
+
+      // First-launch bootstrap: bypass device setup screens and land directly on the numpad.
+      await bootstrapDefaultDeviceState();
+      setIsActivated(true);
     } catch (error) {
       console.error('Error checking activation:', error);
+      localStorage.setItem('pos_first_boot_complete', 'true');
       setIsActivated(true);
+    }
+  }
+
+  async function skipDeviceSetup(): Promise<boolean> {
+    try {
+      await bootstrapDefaultDeviceState();
+      setCurrentUser(null);
+      setIsActivated(true);
+      return true;
+    } catch (error) {
+      console.error('Failed to resume safe local boot:', error);
+      return false;
     }
   }
 
@@ -486,7 +526,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isActivated, currentUser, login, logout, activateDevice, activateByMasterPin, deactivateDevice }}>
+    <AuthContext.Provider value={{ isActivated, currentUser, login, logout, activateDevice, activateByMasterPin, skipDeviceSetup, deactivateDevice }}>
       {children}
     </AuthContext.Provider>
   );

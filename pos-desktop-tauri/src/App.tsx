@@ -138,7 +138,19 @@ function AppContent() {
     );
   }
 
+  const isFirstBootComplete = typeof window !== 'undefined' && localStorage.getItem('pos_first_boot_complete') === 'true';
+
   if (!isActivated) {
+    if (isFirstBootComplete) {
+      return (
+        <>
+          <UpdateBanner />
+          <NumpadLogin />
+          <UpdateHardBlockModal />
+        </>
+      );
+    }
+
     return (
       <>
         <UpdateBanner />

@@ -27,17 +27,17 @@ export default function DeviceActivation() {
   const [progressMessage, setProgressMessage] = useState('');
   const [totalRecords, setTotalRecords] = useState(0);
 
-  const { activateDevice, activateByMasterPin } = useAuth();
+  const { activateDevice, activateByMasterPin, skipDeviceSetup } = useAuth();
 
   // Network listener & keydown listener
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      toast.success('Internet reestabelecida!');
+      toast.success('Internet restored!');
     };
     const handleOffline = () => {
       setIsOnline(false);
-      toast.error('Terminal Offline. Sem acesso à rede!');
+      toast.error('Terminal offline. No network access!');
     };
 
     window.addEventListener('online', handleOnline);
@@ -66,9 +66,9 @@ export default function DeviceActivation() {
     if (nextClicks >= 5) {
       setIsDiagOpen(true);
       setBadgeClicks(0);
-      toast.success('Modo diagnóstico ativado!');
+      toast.success('Diagnostic mode enabled!');
     } else if (nextClicks > 1) {
-      toast(`Clique mais ${5 - nextClicks} vezes para abrir diagnóstico`, { icon: '⚙️' });
+      toast(`Click ${5 - nextClicks} more times to open diagnostics`, { icon: '⚙️' });
     }
   };
 
@@ -77,7 +77,7 @@ export default function DeviceActivation() {
     setError('');
     setIsLoading(true);
     setProgressPercent(0);
-    setProgressMessage('A ligar ao Supabase Cloud com PIN Master...');
+    setProgressMessage('Connecting to Supabase cloud with Master PIN...');
     setTotalRecords(0);
 
     const success = await activateByMasterPin(pin, (percent, msg, count) => {
@@ -87,7 +87,7 @@ export default function DeviceActivation() {
     });
 
     if (!success) {
-      setError('PIN Master inválido ou sem ligação.');
+      setError('Invalid Master PIN or no connection.');
       setIsLoading(false);
     }
   };
@@ -97,7 +97,7 @@ export default function DeviceActivation() {
     setError('');
     setIsLoading(true);
     setProgressPercent(0);
-    setProgressMessage('A validar com o Supabase Cloud...');
+    setProgressMessage('Validating with Supabase cloud...');
     setTotalRecords(0);
     
     let success = false;
@@ -116,7 +116,7 @@ export default function DeviceActivation() {
     }
 
     if (!success) {
-      setError('Código de Loja ou PIN Master inválido. Por favor, tente novamente.');
+      setError('Store code or Master PIN is invalid. Please try again.');
       setIsLoading(false);
     }
   };
@@ -127,6 +127,13 @@ export default function DeviceActivation() {
     setCreatedCredentials({ code: newShopCode, pin: newMasterPin });
     setIsCreatingShop(false);
     setError('');
+  };
+
+  const handleSkipSetup = async () => {
+    const success = await skipDeviceSetup();
+    if (!success) {
+      setError('Unable to recover the terminal. Please try again.');
+    }
   };
 
   return (
@@ -208,7 +215,7 @@ export default function DeviceActivation() {
                       {progressPercent}%
                     </span>
                   </div>
-                  <h3 className="text-lg font-black tracking-tight text-slate-800 dark:text-zinc-100">Restaurando Cópia de Segurança</h3>
+                  <h3 className="text-lg font-black tracking-tight text-slate-800 dark:text-zinc-100">Restoring Backup</h3>
                   <p className="text-slate-500 dark:text-zinc-400 text-xs mt-2 font-medium max-w-[280px] mx-auto min-h-[40px] flex items-center justify-center leading-relaxed">
                     {progressMessage}
                   </p>
@@ -225,34 +232,15 @@ export default function DeviceActivation() {
                 </div>
 
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 dark:text-zinc-500 border-t border-slate-100 dark:border-zinc-800/60 pt-4 font-mono uppercase tracking-wider">
-                  <span>Isolamento Local SQLite</span>
-                  <span>{totalRecords} Registos</span>
+                  <span>Local SQLite Isolation</span>
+                  <span>{totalRecords} Records</span>
                 </div>
               </div>
             ) : (
               <>
                 <div className="text-center mb-6">
-                  <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">Configurar Terminal</h1>
-                  <p className="text-slate-500 dark:text-zinc-500 mt-2 font-medium">Introduza o código da loja para activar este computador.</p>
-                </div>
-
-                {/* Judge Hackathon Quick Access Card */}
-                <div className="bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 mb-5 text-left shadow-xs flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
-                      <span>🏆 Demonstração do Júri • Tech Wonders</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-zinc-300">
-                    Insira apenas o PIN Master <span className="font-mono font-bold bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-zinc-800">600329</span> ou clique no botão para activar instantaneamente:
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoPin('600329')}
-                    className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <span>⚡ Activação Directa com PIN 600329</span>
-                  </button>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">Set Up Terminal</h1>
+                  <p className="text-slate-500 dark:text-zinc-500 mt-2 font-medium">Enter the store code to activate this device.</p>
                 </div>
 
                 {/* Simulated Shop Credentials Copy Card */}
@@ -265,14 +253,14 @@ export default function DeviceActivation() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between bg-black/60 px-3 py-2 rounded-xl border border-zinc-900">
                         <div>
-                          <span className="text-[8px] font-bold text-zinc-500 block uppercase tracking-wider">Código da Loja</span>
+                          <span className="text-[8px] font-bold text-zinc-500 block uppercase tracking-wider">Store Code</span>
                           <span className="text-sm font-black font-mono tracking-wider text-white">{createdCredentials.code}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(createdCredentials.code);
-                            toast.success('Código copiado!');
+                            toast.success('Code copied!');
                           }}
                           className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-indigo-400 rounded-lg cursor-pointer transition-colors"
                           title="Copiar Código"
@@ -283,14 +271,14 @@ export default function DeviceActivation() {
 
                       <div className="flex items-center justify-between bg-black/60 px-3 py-2 rounded-xl border border-zinc-900">
                         <div>
-                          <span className="text-[8px] font-bold text-zinc-500 block uppercase tracking-wider">PIN Master do Administrador</span>
+                          <span className="text-[8px] font-bold text-zinc-500 block uppercase tracking-wider">Admin Master PIN</span>
                           <span className="text-sm font-black font-mono tracking-wider text-emerald-400">{createdCredentials.pin}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(createdCredentials.pin);
-                            toast.success('PIN Master copiado!');
+                            toast.success('Master PIN copied!');
                           }}
                           className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-emerald-400 rounded-lg cursor-pointer transition-colors"
                           title="Copiar PIN"
@@ -310,7 +298,7 @@ export default function DeviceActivation() {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-zinc-400 mb-2">PIN Master do Administrador *</label>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-zinc-400 mb-2">Admin Master PIN *</label>
                     <input
                       type="password"
                       value={masterPin}
@@ -324,14 +312,14 @@ export default function DeviceActivation() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1 flex items-center justify-between">
-                      <span>Código da Loja (Opcional se usar PIN Master)</span>
+                      <span>Store Code (Optional if using Master PIN)</span>
                     </label>
                     <input
                       type="text"
                       value={shopCode}
                       onChange={(e) => setShopCode(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 outline-none transition-all text-xs"
-                      placeholder="Ex: SHOP-A7X92B"
+                      placeholder="Example: SHOP-A7X92B"
                     />
                   </div>
 
@@ -340,16 +328,24 @@ export default function DeviceActivation() {
                     disabled={isLoading}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500 text-white font-semibold py-4 rounded-2xl transition-all shadow-xl dark:shadow-[0_10px_30px_-10px_rgba(99,102,241,0.5)] shadow-indigo-600/20 disabled:opacity-50 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer text-center text-sm uppercase tracking-wider"
                   >
-                    Activar Computador POS
+                    Activate POS Device
                   </button>
 
-                  <div className="mt-8 text-center border-t border-slate-100 dark:border-white/5 pt-6">
+                  <div className="mt-8 text-center border-t border-slate-100 dark:border-white/5 pt-6 space-y-3">
+                    <button
+                      type="button"
+                      onClick={handleSkipSetup}
+                      className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
+                    >
+                      Skip setup and enter POS
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setIsCreatingShop(true)}
                       className="text-sm text-slate-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors cursor-pointer"
                     >
-                      Ainda não tem loja? Criar nova (Simulador)
+                      Don’t have a store yet? Create a new one (Simulator)
                     </button>
                   </div>
                 </form>

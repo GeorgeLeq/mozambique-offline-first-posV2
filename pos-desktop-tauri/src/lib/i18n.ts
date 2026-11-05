@@ -402,7 +402,7 @@ export function getLanguage(): LanguageCode {
       return saved;
     }
   } catch {}
-  return 'pt';
+  return 'en';
 }
 
 export function useI18n(lang?: LanguageCode) {

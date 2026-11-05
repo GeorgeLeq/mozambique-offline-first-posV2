@@ -14,7 +14,7 @@ export const defaultSettings: SettingItem[] = [
   { key: 'currency_symbol', value: 'MT' },
   { key: 'currency_decimals', value: '2' },
   { key: 'currency_decimal_separator', value: ',' },
-  { key: 'locale_lang', value: 'pt' },
+  { key: 'locale_lang', value: 'en' },
   { key: 'receipt_header_title', value: '' },
   { key: 'receipt_header_address', value: '' },
   { key: 'receipt_header_phone', value: '' },

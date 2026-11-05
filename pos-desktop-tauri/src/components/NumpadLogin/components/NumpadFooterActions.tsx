@@ -16,7 +16,7 @@ export function NumpadFooterActions({ onOpenRecovery, onSetIsLoading }: NumpadFo
       onSetIsLoading(true);
       const toastId = toast.loading('A executar Device Wipe completo...');
       await deactivateDevice();
-      toast.success('Dispositivo totalmente limpo! A redirecionar para activação...', { id: toastId });
+      toast.success('Dispositivo totalmente limpo. Use “Ignorar configuração e entrar no POS” para continuar.', { id: toastId });
     } catch (e) {
       console.error('Device wipe error:', e);
       toast.error('Erro ao efetuar Device Wipe.');
