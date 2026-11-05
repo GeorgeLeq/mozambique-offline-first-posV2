@@ -261,6 +261,9 @@ export async function wipeLocalData(isFullWipe = false): Promise<void> {
       }
     }
 
+    // Ensure the offline demo catalog and sample transactional data are restored after any wipe.
+    await ensureDemoRetailData(db);
+
     console.log('Local data wipe finished successfully.');
   } catch (error) {
     console.error('Failed to wipe local data:', error);

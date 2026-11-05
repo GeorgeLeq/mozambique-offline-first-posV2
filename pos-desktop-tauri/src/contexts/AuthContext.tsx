@@ -7,6 +7,7 @@ import { downloadShopBackupFromCloud } from '../lib/syncEngine/backup';
 import { logAudit } from '../lib/audit';
 import { hashPin, findUserByPin } from '../lib/security/crypto';
 import { secureStorage } from '../lib/security/secureStorage';
+import { ensureDemoRetailData } from '../lib/db/seedDemoData';
 
 export interface LoginResult {
   success: boolean;
@@ -69,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         [adminId, 'Admin SYCOMM', 'Admin', hashed]
       );
     }
+
+    await ensureDemoRetailData(db);
 
     localStorage.setItem('pos_first_boot_complete', 'true');
     localStorage.setItem('locale_lang', 'en');
