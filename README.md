@@ -58,6 +58,25 @@ npm run tauri build
 
 ## Llama setup
 
+### Optional: Baseten cloud fallback
+
+This app can also use Baseten as an optional cloud AI fallback when local Ollama is unavailable. This is completely optional.
+
+If you want to use your own Baseten key, open the file:
+
+- `src/lib/ai/unified/basetenClient.ts`
+
+Then update the values there:
+
+```ts
+// User-provided API key from Baseten
+export const DEFAULT_BASETEN_API_KEY = '';
+export const DEFAULT_BASETEN_ENDPOINT = '';
+export const DEFAULT_BASETEN_MODEL = 'meta-models/muse-spark-open';
+```
+
+You can leave these blank if you do not want to use the cloud fallback, or replace them with your own Baseten credentials.
+
 ### Install Ollama
 
 Download from: https://ollama.com/download
