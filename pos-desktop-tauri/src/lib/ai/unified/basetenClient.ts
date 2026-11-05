@@ -16,8 +16,8 @@ export const STORAGE_KEY_BASETEN_ENDPOINT = 'sycomm_baseten_endpoint';
 export const STORAGE_KEY_BASETEN_MODEL = 'sycomm_baseten_model';
 
 // User-provided API key from Baseten
-export const DEFAULT_BASETEN_API_KEY = 'vDTihPU9.yn5qARSit7bhNCRlUnDGCoSNRIdsaad5';
-export const DEFAULT_BASETEN_ENDPOINT = 'https://inference.baseten.co/v1/chat/completions';
+export const DEFAULT_BASETEN_API_KEY = '';
+export const DEFAULT_BASETEN_ENDPOINT = '';
 export const DEFAULT_BASETEN_MODEL = 'meta-models/muse-spark-open';
 
 /**
